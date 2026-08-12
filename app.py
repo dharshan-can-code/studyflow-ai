@@ -9,7 +9,7 @@ from ollama import Client
 # ============================================================
 
 st.set_page_config(
-    page_title="dharshan's lil planner",
+    page_title="StudyFlow AI",
     page_icon="📚",
     layout="wide"
 )
