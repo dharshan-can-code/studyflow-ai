@@ -9,7 +9,7 @@ from ollama import Client
 # ============================================================
 
 st.set_page_config(
-    page_title="StudyFlow AI",
+    page_title="dharshan's lil planner",
     page_icon="📚",
     layout="wide"
 )
@@ -28,8 +28,6 @@ except Exception:
     )
     st.stop()
 
- 
-
 client = Client(
     host="https://ollama.com",
     headers={
@@ -38,7 +36,7 @@ client = Client(
 
 )
 
-MODEL = "llama3.2"
+MODEL = "gpt-oss:20b-cloud"
 
 
 # ============================================================
@@ -67,7 +65,7 @@ if "messages" not in st.session_state:
 
 def ask_ai(prompt, system_message):
     try:
-        response = client.chat.completions.create(
+        response = client.chat(
             model=MODEL,
             messages=[
                 {
@@ -79,27 +77,34 @@ def ask_ai(prompt, system_message):
                     "content": prompt
                 }
             ],
-            response_format={"type": "json_object"},
-            temperature=0
+            format="json",
+            options={
+                "temperature": 0
+            }
         )
 
-        result = response.choices[0].message.content
+        result = response["message"]["content"]
 
         print("RAW RESPONSE:")
         print(repr(result))
 
         # Remove Markdown code blocks if the model adds them
         cleaned_result = result.strip()
+
         if cleaned_result.startswith("```json"):
             cleaned_result = cleaned_result[7:]
+
         elif cleaned_result.startswith("```"):
             cleaned_result = cleaned_result[3:]
+
         if cleaned_result.endswith("```"):
             cleaned_result = cleaned_result[:-3]
-        cleaned_result = cleaned_result.strip()
-        return json.loads(cleaned_result)
-    except json.JSONDecodeError:
 
+        cleaned_result = cleaned_result.strip()
+
+        return json.loads(cleaned_result)
+
+    except json.JSONDecodeError:
         st.error("AI returned invalid JSON.")
         return None
 
