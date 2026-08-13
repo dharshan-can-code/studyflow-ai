@@ -344,6 +344,16 @@ div[data-baseweb="select"] {
     border-radius: 10px;
 }
 
+/* Fix Streamlit sidebar collapse button */
+[data-testid="stSidebarCollapseButton"] button {
+    color: #F8FAFC !important;
+}
+
+[data-testid="stSidebarCollapseButton"] button span {
+    font-family: 'Material Symbols Rounded' !important;
+    font-size: 24px !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
