@@ -14,6 +14,31 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
+
+/* Main app text */
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Headings */
+h1, h2, h3 {
+    font-family: 'Sora', sans-serif !important;
+}
+
+/* StudyFlow AI title */
+.studyflow-title {
+    font-family: 'Sixtyfour', sans-serif;
+    font-size: 42px;
+    font-weight: 400;
+    letter-spacing: -1px;
+    margin-bottom: 0;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # ============================================================
 # CONNECT TO OLLAMA
@@ -368,7 +393,10 @@ with st.sidebar:
 # MAIN TITLE
 # ============================================================
 
-st.title("📚 StudyFlow AI")
+st.markdown(
+    '<div class="studyflow-title">StudyFlow AI</div>',
+    unsafe_allow_html=True
+)
 
 st.subheader(
     "Your AI-powered academic planner"
