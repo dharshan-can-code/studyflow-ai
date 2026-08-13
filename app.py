@@ -16,29 +16,336 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
 
-/* Main app text */
-html, body, [class*="css"] {
+/* ============================================================
+   FONTS
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
+
+
+/* ============================================================
+   MAIN APP
+   ============================================================ */
+
+.stApp {
+    background-color: #0F172A;
+    color: #F8FAFC;
+}
+
+
+/* Remove Streamlit's top header */
+[data-testid="stHeader"] {
+    background-color: #0F172A;
+}
+
+[data-testid="stHeader"] > div {
+    background-color: #0F172A;
+}
+
+
+/* Main content */
+.main .block-container {
+    color: #F8FAFC;
+}
+
+
+/* ============================================================
+   TEXT
+   ============================================================ */
+
+/* Normal text */
+p {
+    color: #F8FAFC !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Labels */
+label {
+    color: #CBD5E1 !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Small / secondary text */
+small {
+    color: #94A3B8 !important;
+}
+
+
+/* ============================================================
+   HEADINGS
+   ============================================================ */
+
+h1, h2, h3 {
+    font-family: 'Sora', sans-serif !important;
+    color: #F8FAFC !important;
+}
+
+
+/* ============================================================
+   STUDYFLOW AI TITLE
+   ============================================================ */
+
+.studyflow-title {
+    font-family: 'Sixtyfour', monospace !important;
+    font-size: 42px;
+    font-weight: 400 !important;
+    letter-spacing: -1px;
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.studyflow-title .brand-name {
+    color: #F8FAFC !important;
+    font-family: 'Sixtyfour', monospace !important;
+}
+
+.studyflow-title .brand-ai {
+    color: #8B5CF6 !important;
+    font-family: 'Sixtyfour', monospace !important;
+}
+
+
+/* ============================================================
+   SUBTITLE
+   ============================================================ */
+
+.studyflow-subtitle {
+    font-family: 'Inter', sans-serif !important;
+    color: #94A3B8 !important;
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+
+/* ============================================================
+   TEXT INPUTS
+   ============================================================ */
+
+.stTextInput input {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Placeholder text */
+.stTextInput input::placeholder {
+    color: #64748B !important;
+    opacity: 1 !important;
+}
+
+/* Remove focus border */
+.stTextInput input:focus {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+
+/* ============================================================
+   TEXT AREAS
+   ============================================================ */
+
+.stTextArea textarea {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Textarea placeholder */
+.stTextArea textarea::placeholder {
+    color: #64748B !important;
+    opacity: 1 !important;
+}
+
+/* Remove focus border */
+.stTextArea textarea:focus {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+
+/* ============================================================
+   SELECT BOX
+   ============================================================ */
+
+.stSelectbox [data-baseweb="select"] > div {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+}
+
+/* Select box text */
+.stSelectbox [data-baseweb="select"] span {
+    color: #F8FAFC !important;
+}
+
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.stButton > button {
+    background-color: #6366F1 !important;
+    color: #FFFFFF !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+
+    transition: background-color 0.2s ease;
+}
+
+.stButton > button:hover {
+    background-color: #8B5CF6 !important;
+    color: #FFFFFF !important;
+}
+
+.stButton > button:focus {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+
+[data-testid="stSidebar"] {
+    background-color: #111C33 !important;
+}
+
+[data-testid="stSidebar"] * {
     font-family: 'Inter', sans-serif;
 }
 
-/* Headings */
-h1, h2, h3 {
-    font-family: 'Sora', sans-serif !important;
+/* Sidebar headings */
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #F8FAFC !important;
 }
 
-/* StudyFlow AI title */
-.studyflow-title {
-    font-family: 'Sixtyfour', sans-serif;
-    font-size: 42px;
-    font-weight: 400;
-    letter-spacing: -1px;
-    margin-bottom: 0;
+/* Sidebar labels */
+[data-testid="stSidebar"] label {
+    color: #CBD5E1 !important;
 }
+
+
+/* ============================================================
+   TABS
+   ============================================================ */
+
+.stTabs [data-baseweb="tab-list"] {
+    background-color: transparent !important;
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    color: #94A3B8 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600;
+}
+
+.stTabs [aria-selected="true"] {
+    color: #8B5CF6 !important;
+}
+
+
+/* ============================================================
+   DIVIDERS
+   ============================================================ */
+
+hr {
+    border: none !important;
+    border-top: 1px solid #1E293B !important;
+}
+
+
+/* ============================================================
+   CONTAINERS / CARDS
+   ============================================================ */
+
+/* Lighter inside surface WITHOUT explicit borders */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: #1E293B !important;
+
+    border: none !important;
+    border-radius: 12px !important;
+}
+
+
+/* ============================================================
+   CHAT
+   ============================================================ */
+
+[data-testid="stChatMessage"] {
+    background-color: #1E293B !important;
+    border: none !important;
+    border-radius: 12px !important;
+}
+
+[data-testid="stChatInput"] textarea {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+
+    border: none !important;
+}
+
+[data-testid="stChatInput"] textarea::placeholder {
+    color: #64748B !important;
+}
+
+
+/* ============================================================
+   GENERAL STREAMLIT COMPONENT BORDERS
+   ============================================================ */
+
+div[data-baseweb="input"] {
+    border: none !important;
+}
+
+div[data-baseweb="textarea"] {
+    border: none !important;
+}
+
+div[data-baseweb="select"] {
+    border: none !important;
+}
+
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0F172A;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+}
+
 </style>
 """, unsafe_allow_html=True)
-
 
 # ============================================================
 # CONNECT TO OLLAMA
@@ -394,12 +701,18 @@ with st.sidebar:
 # ============================================================
 
 st.markdown(
-    '<div class="studyflow-title">StudyFlow AI</div>',
+    """
+    <div class="studyflow-title">
+        <span class="brand-name">StudyFlow</span>
+        <span class="brand-ai"> AI</span>
+    </div>
+    """,
     unsafe_allow_html=True
 )
 
-st.subheader(
-    "Your AI-powered academic planner"
+st.markdown(
+    '<div class="studyflow-subtitle">Your AI-powered academic planner</div>',
+    unsafe_allow_html=True
 )
 
 st.write(
