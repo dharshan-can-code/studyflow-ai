@@ -415,13 +415,15 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True):
         ]
 
         if conversation:
+            messages[0]["content"] += "\n\n" + prompt
             messages.extend(conversation)
         else:
-            messages.append({
-                "role": "user",
-                "content": prompt
-            })
-
+             messages.append(
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            )
         response = client.chat(
             model=MODEL,
             messages=messages,
@@ -451,7 +453,13 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True):
 
         cleaned_result = cleaned_result.strip()
 
-        return json.loads(cleaned_result)
+        parsed = json.loads(cleaned_result)
+
+        if not isinstance(parsed, dict):
+            st.error("AI returned an unexpected format.")
+            return None
+
+        return parsed
 
     except json.JSONDecodeError:
         st.error("AI returned invalid JSON.")
