@@ -380,6 +380,10 @@ client = Client(
 
 MODEL = "gpt-oss:20b-cloud"
 
+# How many recent chat messages the AI assistant remembers.
+# Keeps requests fast and small as the conversation grows.
+MAX_HISTORY_MESSAGES = 20
+
 
 # ============================================================
 # SESSION STATE
@@ -415,10 +419,18 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True):
         ]
 
         if conversation:
+            # Instructions go in the system message, followed by
+            # the chat history (oldest to newest).
             messages[0]["content"] += "\n\n" + prompt
-            messages.extend(conversation)
+            messages.extend(
+                {
+                    "role": m["role"],
+                    "content": m["content"]
+                }
+                for m in conversation
+            )
         else:
-             messages.append(
+            messages.append(
                 {
                     "role": "user",
                     "content": prompt
@@ -612,45 +624,65 @@ RULES:
 - Put the answer to the student ONLY inside the "response" field.
 - Do NOT use fields such as "explanation", "definition", "examples", or "visualization".
 - If the student is asking to add an assignment, use "action": "add_assignment".
+- Use the earlier messages in this conversation for context
+  (for example, "explain that again" refers to your last answer).
+- Difficulty must be 1-5.
+- Priority must be Low, Medium, or High.
+- Convert relative dates such as "next Friday" into YYYY-MM-DD.
 - Return ONLY valid JSON.
 """
+    # Send only the most recent messages so long chats stay fast.
+    history = st.session_state.messages[-MAX_HISTORY_MESSAGES:]
+
+    # use_json stays on (the default) because the code below
+    # reads the "action" and "response" fields from a JSON object.
     result = ask_ai(
-    prompt,
-    "You are StudyFlow AI, a helpful student study assistant. "
-    "Answer the student's question naturally and helpfully.",
-    conversation=st.session_state.messages,
-    use_json=False
-)
+        prompt,
+        "You are StudyFlow AI, a helpful student study assistant. "
+        "Return only valid JSON.",
+        conversation=history
+    )
+
     if result is None:
-        return
+        return None
+
+    response_text = result.get("response")
 
     if result.get("action") == "add_assignment":
         assignment = result.get("assignment")
 
-        if assignment:
+        if isinstance(assignment, dict):
+            # Fill in anything the AI left out so the
+            # Assignments tab can always display it.
+            assignment = {
+                "name": assignment.get("name") or "Untitled assignment",
+                "course": assignment.get("course") or "General",
+                "due_date": assignment.get("due_date") or "Not set",
+                "difficulty": assignment.get("difficulty") or 3,
+                "estimated_minutes": assignment.get("estimated_minutes") or 60,
+                "priority": assignment.get("priority") or "Medium",
+                "description": assignment.get("description", "")
+            }
+
             st.session_state.assignments.append(assignment)
 
-            response_text = result.get(
-                "response",
-                f"Added {assignment['name']} to your assignments."
-            )
+            if not response_text:
+                response_text = (
+                    f"Added **{assignment['name']}** "
+                    "to your assignments."
+                )
 
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": response_text
-            })
+    if not response_text:
+        st.error("AI response was missing the 'response' field.")
+        st.json(result)
+        return None
 
-    else:
-        response_text = result.get("response")
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": response_text
+    })
 
-        if response_text:
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": response_text
-            })
-        else:
-            st.error("AI response was missing the 'response' field.")
-            st.json(result)
+    return response_text
 
 
 # ============================================================
@@ -985,11 +1017,13 @@ with tab3:
             with st.spinner(
                 "🤖 Thinking..."
             ):
-                chatbot(user_message)
-            if st.session_state.messages:
-                st.markdown(
-                    st.session_state.messages[-1]["content"]
-                )
+                reply = chatbot(user_message)
+
+            # Only show a reply if the AI actually answered.
+            # (Before, a failed request re-showed the
+            # student's own message as the assistant's reply.)
+            if reply:
+                st.markdown(reply)
 
 # ============================================================
 # FOOTER
@@ -998,4 +1032,4 @@ with tab3:
 st.divider()
 st.caption(
     "StudyFlow AI • Powered by Ollama"
-)
+)
