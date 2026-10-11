@@ -405,37 +405,44 @@ if "messages" not in st.session_state:
 # AI HELPER
 # ============================================================
 
-def ask_ai(prompt, system_message):
+def ask_ai(prompt, system_message, conversation=None, use_json=True):
     try:
+        messages = [
+            {
+                "role": "system",
+                "content": system_message
+            }
+        ]
+
+        if conversation:
+            messages.extend(conversation)
+        else:
+            messages.append({
+                "role": "user",
+                "content": prompt
+            })
+
         response = client.chat(
             model=MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_message
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            format="json",
+            messages=messages,
+            format="json" if use_json else None,
             options={
                 "temperature": 0
             }
         )
 
-        result = response["message"]["content"]
+        result = response.message.content
 
         print("RAW RESPONSE:")
         print(repr(result))
 
-        # Remove Markdown code blocks if the model adds them
+        if not use_json:
+            return result.strip()
+
         cleaned_result = result.strip()
 
         if cleaned_result.startswith("```json"):
             cleaned_result = cleaned_result[7:]
-
         elif cleaned_result.startswith("```"):
             cleaned_result = cleaned_result[3:]
 
@@ -561,68 +568,81 @@ Use exactly this format:
 def chatbot(message):
     prompt = f"""
 Today's date is {datetime.now().strftime("%Y-%m-%d")}.
+
 The student currently has these assignments:
 {json.dumps(st.session_state.assignments, indent=4)}
-The student said:
-"{message}"
-Determine what the student wants.
-If they are adding an assignment, return:
+
+You are the StudyFlow AI assistant.
+
+The student is having a conversation with you. Answer their question naturally and helpfully.
+
+IMPORTANT: You MUST return ONLY a valid JSON object using EXACTLY one of these formats.
+
+For a normal conversation:
+{{
+    "action": "conversation",
+    "assignment": null,
+    "response": "Your complete answer to the student."
+}}
+
+For adding an assignment:
 {{
     "action": "add_assignment",
     "assignment": {{
-        "name": "",
-        "course": "",
+        "name": "Assignment name",
+        "course": "Course name",
         "due_date": "YYYY-MM-DD",
         "difficulty": 1,
         "estimated_minutes": 60,
         "priority": "Medium"
     }},
-    "response": ""
+    "response": "Confirmation message."
 }}
-If they are asking a normal question, return:
-{{
-    "action": "conversation",
-    "assignment": null,
-    "response": ""
-}}
-Rules:
-- Difficulty must be 1-5.
-- Priority must be Low, Medium, or High.
-- Convert relative dates into YYYY-MM-DD.
+
+RULES:
+- Normal questions MUST use "action": "conversation".
+- Put the answer to the student ONLY inside the "response" field.
+- Do NOT use fields such as "explanation", "definition", "examples", or "visualization".
+- If the student is asking to add an assignment, use "action": "add_assignment".
 - Return ONLY valid JSON.
 """
     result = ask_ai(
-        prompt,
-        "You are StudyFlow AI, a helpful student study assistant. "
-        "Return only valid JSON."
-    )
+    prompt,
+    "You are StudyFlow AI, a helpful student study assistant. "
+    "Answer the student's question naturally and helpfully.",
+    conversation=st.session_state.messages,
+    use_json=False
+)
     if result is None:
         return
+
     if result.get("action") == "add_assignment":
         assignment = result.get("assignment")
+
         if assignment:
-            st.session_state.assignments.append(
-                assignment
-            )
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content":
-                    f"Added **{assignment['name']}** to your assignments."
-                }
+            st.session_state.assignments.append(assignment)
+
+            response_text = result.get(
+                "response",
+                f"Added {assignment['name']} to your assignments."
             )
 
-    else:
-        st.session_state.messages.append(
-            {
+            st.session_state.messages.append({
                 "role": "assistant",
-                "content":
-                result.get(
-                    "response",
-                    "I'm not sure what you mean."
-                )
-            }
-        )
+                "content": response_text
+            })
+
+    else:
+        response_text = result.get("response")
+
+        if response_text:
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": response_text
+            })
+        else:
+            st.error("AI response was missing the 'response' field.")
+            st.json(result)
 
 
 # ============================================================
