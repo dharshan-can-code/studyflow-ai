@@ -1,6 +1,7 @@
 import streamlit as st
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from ollama import Client
 
 
@@ -34,7 +35,6 @@ st.markdown("""
 }
 
 
-/* Remove Streamlit's top header */
 [data-testid="stHeader"] {
     background-color: #0F172A;
 }
@@ -44,7 +44,6 @@ st.markdown("""
 }
 
 
-/* Main content */
 .main .block-container {
     color: #F8FAFC;
 }
@@ -54,19 +53,16 @@ st.markdown("""
    TEXT
    ============================================================ */
 
-/* Normal text */
 p {
     color: #F8FAFC !important;
     font-family: 'Inter', sans-serif !important;
 }
 
-/* Labels */
 label {
     color: #CBD5E1 !important;
     font-family: 'Inter', sans-serif !important;
 }
 
-/* Small / secondary text */
 small {
     color: #94A3B8 !important;
 }
@@ -132,13 +128,11 @@ h1, h2, h3 {
     font-family: 'Inter', sans-serif !important;
 }
 
-/* Placeholder text */
 .stTextInput input::placeholder {
     color: #64748B !important;
     opacity: 1 !important;
 }
 
-/* Remove focus border */
 .stTextInput input:focus {
     border: none !important;
     box-shadow: none !important;
@@ -160,13 +154,11 @@ h1, h2, h3 {
     font-family: 'Inter', sans-serif !important;
 }
 
-/* Textarea placeholder */
 .stTextArea textarea::placeholder {
     color: #64748B !important;
     opacity: 1 !important;
 }
 
-/* Remove focus border */
 .stTextArea textarea:focus {
     border: none !important;
     box-shadow: none !important;
@@ -186,7 +178,6 @@ h1, h2, h3 {
     border-radius: 10px !important;
 }
 
-/* Select box text */
 .stSelectbox [data-baseweb="select"] span {
     color: #F8FAFC !important;
 }
@@ -232,14 +223,12 @@ h1, h2, h3 {
     font-family: 'Inter', sans-serif;
 }
 
-/* Sidebar headings */
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 {
     color: #F8FAFC !important;
 }
 
-/* Sidebar labels */
 [data-testid="stSidebar"] label {
     color: #CBD5E1 !important;
 }
@@ -279,7 +268,6 @@ hr {
    CONTAINERS / CARDS
    ============================================================ */
 
-/* Lighter inside surface WITHOUT explicit borders */
 [data-testid="stVerticalBlockBorderWrapper"] {
     background-color: #1E293B !important;
 
@@ -344,7 +332,6 @@ div[data-baseweb="select"] {
     border-radius: 10px;
 }
 
-/* Fix Streamlit sidebar collapse button */
 [data-testid="stSidebarCollapseButton"] button {
     color: #F8FAFC !important;
 }
@@ -380,8 +367,8 @@ client = Client(
 
 MODEL = "gpt-oss:20b-cloud"
 
-# How many recent chat messages the AI assistant remembers.
-# Keeps requests fast and small as the conversation grows.
+APP_TIMEZONE = "America/New_York"
+
 MAX_HISTORY_MESSAGES = 20
 
 
@@ -406,6 +393,28 @@ if "messages" not in st.session_state:
 
 
 # ============================================================
+# DATE HELPER
+# ============================================================
+
+def date_context():
+    try:
+        today = datetime.now(ZoneInfo(APP_TIMEZONE)).date()
+    except Exception:
+        today = datetime.now().date()
+
+    lines = [
+        f"Today is {today:%A}, {today:%Y-%m-%d}.",
+        "Calendar for the next two weeks (use it to convert "
+        "relative dates like \"next Friday\"):"
+    ]
+    for i in range(1, 15):
+        day = today + timedelta(days=i)
+        lines.append(f"- {day:%A} {day:%Y-%m-%d}")
+
+    return "\n".join(lines)
+
+
+# ============================================================
 # AI HELPER
 # ============================================================
 
@@ -419,8 +428,6 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True):
         ]
 
         if conversation:
-            # Instructions go in the system message, followed by
-            # the chat history (oldest to newest).
             messages[0]["content"] += "\n\n" + prompt
             messages.extend(
                 {
@@ -489,9 +496,8 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True):
 
 def analyze_assignment(text):
 
-    today = datetime.now().strftime("%Y-%m-%d")
     prompt = f"""
-Today's date is {today}.
+{date_context()}
 
 Analyze this student's academic task:
 "{text}"
@@ -533,7 +539,7 @@ def generate_plan():
         return None
     availability = st.session_state.availability
     prompt = f"""
-Today's date is {datetime.now().strftime("%Y-%m-%d")}.
+{date_context()}
 The student's courses are:
 {json.dumps(st.session_state.courses, indent=4)}
 The student's extracurricular activities are:
@@ -587,7 +593,7 @@ Use exactly this format:
 
 def chatbot(message):
     prompt = f"""
-Today's date is {datetime.now().strftime("%Y-%m-%d")}.
+{date_context()}
 
 The student currently has these assignments:
 {json.dumps(st.session_state.assignments, indent=4)}
@@ -631,11 +637,8 @@ RULES:
 - Convert relative dates such as "next Friday" into YYYY-MM-DD.
 - Return ONLY valid JSON.
 """
-    # Send only the most recent messages so long chats stay fast.
     history = st.session_state.messages[-MAX_HISTORY_MESSAGES:]
 
-    # use_json stays on (the default) because the code below
-    # reads the "action" and "response" fields from a JSON object.
     result = ask_ai(
         prompt,
         "You are StudyFlow AI, a helpful student study assistant. "
@@ -652,8 +655,6 @@ RULES:
         assignment = result.get("assignment")
 
         if isinstance(assignment, dict):
-            # Fill in anything the AI left out so the
-            # Assignments tab can always display it.
             assignment = {
                 "name": assignment.get("name") or "Untitled assignment",
                 "course": assignment.get("course") or "General",
@@ -991,7 +992,6 @@ with tab3:
         "Tell me about assignments, tests, or "
         "your study workload."
     )
-    # Display previous messages
     for message in st.session_state.messages:
         with st.chat_message(
             message["role"]
@@ -1013,15 +1013,17 @@ with tab3:
         )
         with st.chat_message("user"):
             st.write(user_message)
+        assignment_count = len(st.session_state.assignments)
+
         with st.chat_message("assistant"):
             with st.spinner(
                 "🤖 Thinking..."
             ):
                 reply = chatbot(user_message)
 
-            # Only show a reply if the AI actually answered.
-            # (Before, a failed request re-showed the
-            # student's own message as the assistant's reply.)
+            if len(st.session_state.assignments) > assignment_count:
+                st.rerun()
+
             if reply:
                 st.markdown(reply)
 
