@@ -1,9 +1,11 @@
 import streamlit as st
 import json
+import re
 import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from ollama import Client
+import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 
 import storage
@@ -27,7 +29,7 @@ st.markdown("""
    FONTS
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
 
 
 /* ============================================================
@@ -286,20 +288,87 @@ hr {
    ============================================================ */
 
 [data-testid="stChatMessage"] {
-    background-color: #1E293B !important;
+    background: rgba(20, 29, 50, .84) !important;
+    border: 1px solid rgba(148, 163, 184, .12) !important;
+    border-radius: 16px !important;
+    padding: 1rem 1.1rem !important;
+    margin: .75rem 0 !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .10);
+}
+
+[data-testid="stChatMessage"] p,
+[data-testid="stChatMessage"] li {
+    line-height: 1.65;
+}
+
+[data-testid="stChatMessage"] li,
+[data-testid="stChatMessage"] td,
+[data-testid="stChatMessage"] th,
+[data-testid="stChatMessage"] blockquote,
+[data-testid="stChatMessage"] h4,
+[data-testid="stChatMessage"] h5 {
+    color: #F8FAFC !important;
+}
+
+[data-testid="stChatMessage"] li::marker {
+    color: #a78bfa;
+}
+
+[data-testid="stChatInput"] {
+    background: #18233d !important;
+    border: 1px solid rgba(167, 139, 250, .35) !important;
+    border-radius: 15px !important;
+}
+
+[data-testid="stChatInput"] > div {
+    background: transparent !important;
     border: none !important;
-    border-radius: 12px !important;
 }
 
 [data-testid="stChatInput"] textarea {
-    background-color: #1E293B !important;
     color: #F8FAFC !important;
-
+    background: transparent !important;
     border: none !important;
 }
 
 [data-testid="stChatInput"] textarea::placeholder {
-    color: #64748B !important;
+    color: #8491a8 !important;
+}
+
+[data-testid="stChatInput"] button {
+    color: #a78bfa !important;
+}
+
+.chat-kicker {
+    color: #a78bfa;
+    font-family: 'DM Mono', monospace;
+    font-size: .72rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    margin-bottom: .4rem;
+}
+
+.chat-subtitle {
+    color: #a9b5c9 !important;
+    font-size: 1rem;
+    line-height: 1.65;
+    max-width: 39rem;
+    margin: .25rem 0 1.25rem;
+}
+
+.welcome-card {
+    background: linear-gradient(115deg, rgba(124, 58, 237, .22), rgba(30, 41, 72, .75));
+    border: 1px solid rgba(196, 181, 253, .25);
+    border-radius: 18px;
+    padding: 1.15rem 1.25rem;
+    margin: .5rem 0 1.5rem;
+    color: #e9e5ff;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+}
+
+.welcome-card strong {
+    color: #fff;
 }
 
 
@@ -397,9 +466,15 @@ MODEL = "gpt-oss:20b-cloud"
 
 VISION_MODEL = "gemma4:31b-cloud"
 
+CHAT_MODEL = "gemma4:31b-cloud"
+
+CHAT_TEMPERATURE = 0.7
+
+LOGO_PATH = "assets/studyflow_logo.png"
+
 APP_TIMEZONE = "America/New_York"
 
-MAX_HISTORY_MESSAGES = 20
+MAX_HISTORY_MESSAGES = 50
 
 GUEST_COOKIE = "studyflow_guest_token"
 
@@ -449,20 +524,21 @@ def existing_guest_token():
 
 
 def create_guest_token():
-    controller = CookieController(key="studyflow_cookie_controller")
+    with COOKIE_SLOT:
+        controller = CookieController(key="studyflow_cookie_controller")
 
-    if "cookie_controller_loaded" not in st.session_state:
-        st.session_state.cookie_controller_loaded = True
-        st.stop()
+        if "cookie_controller_loaded" not in st.session_state:
+            st.session_state.cookie_controller_loaded = True
+            st.stop()
 
-    token = controller.get(GUEST_COOKIE) or secrets.token_urlsafe(32)
-    controller.set(
-        GUEST_COOKIE,
-        token,
-        expires=datetime.now() + timedelta(days=400),
-        secure=True,
-        same_site="strict"
-    )
+        token = controller.get(GUEST_COOKIE) or secrets.token_urlsafe(32)
+        controller.set(
+            GUEST_COOKIE,
+            token,
+            expires=datetime.now() + timedelta(days=400),
+            secure=True,
+            same_site="strict"
+        )
     st.session_state.guest_token = token
     return token
 
@@ -586,6 +662,8 @@ def delete_my_data():
     st.session_state.loaded_identity = None
 
 
+COOKIE_SLOT = st.container()
+
 SUPABASE = load_student()
 
 
@@ -615,7 +693,7 @@ def date_context():
 # AI HELPER
 # ============================================================
 
-def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None, model=MODEL):
+def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None, model=MODEL, temperature=0):
     try:
         messages = [
             {
@@ -648,7 +726,7 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None
             messages=messages,
             format="json" if use_json else None,
             options={
-                "temperature": 0
+                "temperature": temperature
             }
         )
 
@@ -890,100 +968,99 @@ Use exactly this format:
 # CHATBOT
 # ============================================================
 
-def chatbot(message):
-    prompt = f"""
+CHAT_SYSTEM_PROMPT = """You are StudyFlow AI: a capable, friendly, practical study assistant for high school students.
+Help with understanding schoolwork, studying for tests, planning workload, writing, brainstorming, and explaining images of homework or notes.
+Use the conversation history to maintain context. Be honest when you are uncertain, never claim to see an image that was not included, and give clear, useful answers. Format with Markdown only when it improves readability.
+When the student is working on homework, guide them through the steps so they understand how to solve it, instead of only giving the final answer.
+"""
+
+ASSIGNMENT_TAG = re.compile(r"<add_assignment>(.*?)</add_assignment>", re.S)
+
+UNFINISHED_TAG = re.compile(r"<add_assignment>.*$", re.S)
+
+
+def chat_context():
+    return f"""
 {date_context()}
 
-The student currently has these assignments:
-{json.dumps(st.session_state.assignments, indent=4)}
+The student's courses are:
+{json.dumps(st.session_state.courses)}
 
-You are the StudyFlow AI assistant.
+The student's current assignments are:
+{json.dumps(st.session_state.assignments, indent=2)}
 
-The student is having a conversation with you. Answer their question naturally and helpfully.
-
-IMPORTANT: You MUST return ONLY a valid JSON object using EXACTLY one of these formats.
-
-For a normal conversation:
-{{
-    "action": "conversation",
-    "assignment": null,
-    "response": "Your complete answer to the student."
-}}
-
-For adding an assignment:
-{{
-    "action": "add_assignment",
-    "assignment": {{
-        "name": "Assignment name",
-        "course": "Course name",
-        "due_date": "YYYY-MM-DD",
-        "difficulty": 1,
-        "estimated_minutes": 60,
-        "priority": "Medium"
-    }},
-    "response": "Confirmation message."
-}}
-
-RULES:
-- Normal questions MUST use "action": "conversation".
-- Put the answer to the student ONLY inside the "response" field.
-- Do NOT use fields such as "explanation", "definition", "examples", or "visualization".
-- If the student is asking to add an assignment, use "action": "add_assignment".
-- Use the earlier messages in this conversation for context
-  (for example, "explain that again" refers to your last answer).
-- Difficulty must be 1-5.
-- Priority must be Low, Medium, or High.
-- Convert relative dates such as "next Friday" into YYYY-MM-DD.
-- If the student attached an image, look at it carefully and explain it.
-  For homework problems, walk through the steps so the student understands
-  how to solve it, instead of only giving the final answer.
-- Return ONLY valid JSON.
+Adding assignments:
+If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
+reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
+in exactly this format:
+<add_assignment>{{"name": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
+- Difficulty must be 1-5. Priority must be Low, Medium, or High.
+- Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
+- Never use these tags for anything else, and never mention them to the student.
 """
-    history = st.session_state.messages[-MAX_HISTORY_MESSAGES:]
-    has_images = any(m.get("images") for m in history)
 
-    result = ask_ai(
-        prompt,
-        "You are StudyFlow AI, a helpful student study assistant. "
-        "Return only valid JSON.",
+
+def pull_assignment_tags(reply):
+    added = []
+
+    for raw in ASSIGNMENT_TAG.findall(reply):
+        raw = raw.strip()
+        for fence in ("```json", "```"):
+            raw = raw.removeprefix(fence)
+        raw = raw.removesuffix("```").strip()
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+
+        if isinstance(data, dict):
+            added.append(normalize_assignment(data))
+
+    clean_reply = UNFINISHED_TAG.sub("", ASSIGNMENT_TAG.sub("", reply)).strip()
+    return clean_reply, added
+
+
+def chatbot(message):
+    history = st.session_state.messages[-MAX_HISTORY_MESSAGES:]
+
+    reply = ask_ai(
+        chat_context(),
+        CHAT_SYSTEM_PROMPT,
         conversation=history,
-        model=VISION_MODEL if has_images else MODEL
+        use_json=False,
+        model=CHAT_MODEL,
+        temperature=CHAT_TEMPERATURE
     )
 
-    if result is None:
+    if not reply:
         return None
 
-    response_text = result.get("response")
+    reply, added = pull_assignment_tags(reply)
 
-    if result.get("action") == "add_assignment":
-        assignment = result.get("assignment")
+    if added:
+        st.session_state.assignments.extend(added)
 
-        if isinstance(assignment, dict):
-            assignment = normalize_assignment(assignment)
+        if not reply:
+            names = ", ".join(f"**{assignment['name']}**" for assignment in added)
+            reply = f"Added {names} to your assignments."
 
-            st.session_state.assignments.append(assignment)
-
-            if not response_text:
-                response_text = (
-                    f"Added **{assignment['name']}** "
-                    "to your assignments."
-                )
-
-    if not response_text:
-        st.error("AI response was missing the 'response' field.")
-        st.json(result)
+    if not reply:
+        st.error("The AI sent back an empty reply. Please try again.")
         return None
 
     st.session_state.messages.append({
         "role": "assistant",
-        "content": response_text
+        "content": reply
     })
 
-    return response_text
+    return reply
 
 
 def render_chat_message(message):
-    with st.chat_message(message["role"]):
+    avatar = LOGO_PATH if message["role"] == "assistant" else "🙂"
+
+    with st.chat_message(message["role"], avatar=avatar):
         if message.get("content"):
             st.markdown(message["content"])
 
@@ -1403,11 +1480,12 @@ with tab2:
 # ============================================================
 
 with tab3:
+    st.markdown('<div class="chat-kicker">Your study sidekick</div>', unsafe_allow_html=True)
     st.header("💬 StudyFlow AI")
-    st.write(
-        "Tell me about assignments, tests, or "
-        "your study workload. Attach a photo of a worksheet or "
-        "problem and I'll explain it step by step."
+    st.markdown(
+        '<p class="chat-subtitle">Ask about a tough topic, plan your week, '
+        'or attach a photo of a problem for a step-by-step explanation.</p>',
+        unsafe_allow_html=True
     )
 
     if st.session_state.messages and st.button("🗑️ Clear chat"):
@@ -1418,11 +1496,21 @@ with tab3:
     conversation_area = st.container()
 
     with conversation_area:
+        welcome_slot = st.empty()
+
+        if not st.session_state.messages:
+            welcome_slot.markdown(
+                '<div class="welcome-card"><strong>Hi, I\'m StudyFlow AI 👋</strong><br>'
+                'Tell me about a test, ask me to explain something, or say '
+                '"add my bio test on Friday" and I\'ll put it in your planner.</div>',
+                unsafe_allow_html=True
+            )
+
         for message in st.session_state.messages:
             render_chat_message(message)
 
     submission = st.chat_input(
-        "Example: I have a biology test Friday...",
+        "Ask anything, or attach a photo...",
         accept_file=True,
         file_type=uploads.IMAGE_TYPES,
         key="chat_box"
@@ -1448,16 +1536,15 @@ with tab3:
                 "images": message_images
             }
             st.session_state.messages.append(user_message)
+            welcome_slot.empty()
 
             with conversation_area:
                 render_chat_message(user_message)
 
                 assignment_count = len(st.session_state.assignments)
 
-                with st.chat_message("assistant"):
-                    with st.spinner(
-                        "🤖 Thinking..."
-                    ):
+                with st.chat_message("assistant", avatar=LOGO_PATH):
+                    with st.spinner("Thinking…"):
                         reply = chatbot(message_text)
 
                     save()
@@ -1467,6 +1554,42 @@ with tab3:
 
                     if reply:
                         st.markdown(reply)
+
+    components.html(
+        """
+        <script>
+            const doc = window.parent.document;
+            if (doc.__studyflowCopyHandler) {
+                doc.removeEventListener('copy', doc.__studyflowCopyHandler);
+            }
+            doc.__studyflowCopyHandler = (event) => {
+                const selection = doc.getSelection();
+                if (!selection || selection.isCollapsed) return;
+                const node = selection.anchorNode;
+                const element = node && (node.nodeType === 1 ? node : node.parentElement);
+                if (!element || !element.closest('[data-testid="stChatMessage"]')) return;
+
+                const container = doc.createElement('div');
+                for (let i = 0; i < selection.rangeCount; i++) {
+                    container.appendChild(selection.getRangeAt(i).cloneContents());
+                }
+                container.querySelectorAll('*').forEach((el) => {
+                    el.style.color = '#000';
+                    el.style.backgroundColor = 'transparent';
+                });
+
+                event.clipboardData.setData(
+                    'text/html',
+                    `<div style="color:#000;background:transparent">${container.innerHTML}</div>`
+                );
+                event.clipboardData.setData('text/plain', selection.toString());
+                event.preventDefault();
+            };
+            doc.addEventListener('copy', doc.__studyflowCopyHandler);
+        </script>
+        """,
+        height=0
+    )
 
 # ============================================================
 # FOOTER
