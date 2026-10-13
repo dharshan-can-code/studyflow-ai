@@ -1,8 +1,13 @@
 import streamlit as st
 import json
+import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from ollama import Client
+from streamlit_cookies_controller import CookieController
+
+import storage
+import uploads
 
 
 # ============================================================
@@ -316,6 +321,29 @@ div[data-baseweb="select"] {
 
 
 /* ============================================================
+   FILE UPLOADER
+   ============================================================ */
+
+[data-testid="stFileUploaderDropzone"] {
+    background-color: #1E293B !important;
+    border: 1px dashed #334155 !important;
+    border-radius: 10px !important;
+}
+
+[data-testid="stFileUploaderDropzone"] span,
+[data-testid="stFileUploaderDropzone"] small,
+[data-testid="stFileUploaderDropzone"] p {
+    color: #CBD5E1 !important;
+}
+
+[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+    background-color: #334155 !important;
+    color: #F8FAFC !important;
+    border: none !important;
+}
+
+
+/* ============================================================
    SCROLLBAR
    ============================================================ */
 
@@ -367,29 +395,198 @@ client = Client(
 
 MODEL = "gpt-oss:20b-cloud"
 
+VISION_MODEL = "gemma4:31b-cloud"
+
 APP_TIMEZONE = "America/New_York"
 
 MAX_HISTORY_MESSAGES = 20
+
+GUEST_COOKIE = "studyflow_guest_token"
+
+DAYS = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday"
+]
 
 
 # ============================================================
 # SESSION STATE
 # ============================================================
 
-if "assignments" not in st.session_state:
-    st.session_state.assignments = []
+for field, empty in storage.SAVED_FIELDS.items():
+    if field not in st.session_state:
+        st.session_state[field] = empty()
 
-if "study_plan" not in st.session_state:
-    st.session_state.study_plan = None
+if "found_assignments" not in st.session_state:
+    st.session_state.found_assignments = []
 
-if "courses" not in st.session_state:
-    st.session_state.courses = []
+if "found_batch" not in st.session_state:
+    st.session_state.found_batch = 0
 
-if "activities" not in st.session_state:
-    st.session_state.activities = []
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# ============================================================
+# ACCOUNT
+# ============================================================
+
+def google_login_available():
+    try:
+        return "auth" in st.secrets
+    except Exception:
+        return False
+
+
+def signed_in_with_google():
+    return google_login_available() and st.user.is_logged_in
+
+
+def existing_guest_token():
+    return st.session_state.get("guest_token") or st.context.cookies.get(GUEST_COOKIE)
+
+
+def create_guest_token():
+    controller = CookieController(key="studyflow_cookie_controller")
+
+    if "cookie_controller_loaded" not in st.session_state:
+        st.session_state.cookie_controller_loaded = True
+        st.stop()
+
+    token = controller.get(GUEST_COOKIE) or secrets.token_urlsafe(32)
+    controller.set(
+        GUEST_COOKIE,
+        token,
+        expires=datetime.now() + timedelta(days=400),
+        secure=True,
+        same_site="strict"
+    )
+    st.session_state.guest_token = token
+    return token
+
+
+def show_welcome():
+    st.markdown(
+        """
+        <div class="studyflow-title">
+            <span class="brand-name">StudyFlow</span>
+            <span class="brand-ai"> AI</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="studyflow-subtitle">Your AI-powered academic planner</div>',
+        unsafe_allow_html=True
+    )
+    st.write(
+        "Welcome! StudyFlow saves your courses, assignments, and study plan "
+        "so they're still here next time you visit."
+    )
+
+    google_column, guest_column = st.columns(2)
+
+    if google_login_available():
+        with google_column:
+            with st.container(border=True):
+                st.subheader("Sign in with Google")
+                st.caption("Your plan is saved to your account and works on any device.")
+                if st.button("Sign in with Google", type="primary", use_container_width=True):
+                    st.login()
+
+    with guest_column:
+        with st.container(border=True):
+            st.subheader("Continue without signing in")
+            st.caption("Your plan is saved on this browser only. You can sign in later.")
+            if st.button("Continue as guest", use_container_width=True):
+                st.session_state.guest_chosen = True
+                st.rerun()
+
+    st.stop()
+
+
+def current_identity():
+    if signed_in_with_google():
+        return {
+            "google_sub": st.user.get("sub"),
+            "guest_token": existing_guest_token()
+        }
+
+    token = existing_guest_token()
+
+    if not token and st.session_state.get("guest_chosen"):
+        token = create_guest_token()
+
+    if not token:
+        show_welcome()
+
+    return {
+        "google_sub": None,
+        "guest_token": token
+    }
+
+
+def load_student():
+    supabase = storage.get_supabase()
+    if supabase is None:
+        return None
+
+    identity = current_identity()
+    identity_key = identity["google_sub"] or identity["guest_token"]
+
+    if st.session_state.get("loaded_identity") == identity_key:
+        return supabase
+
+    try:
+        student = storage.find_or_create_student(supabase, **identity)
+    except Exception as error:
+        st.error(
+            "StudyFlow couldn't reach its database, "
+            "so your changes won't be saved right now."
+        )
+        with st.expander("Technical details"):
+            st.code(str(error))
+        return None
+
+    for field, value in storage.saved_data(student).items():
+        st.session_state[field] = value
+
+    for day in DAYS:
+        st.session_state[f"availability_{day}"] = st.session_state.availability.get(day, "")
+
+    st.session_state.found_assignments = []
+    st.session_state.student_id = student["id"]
+    st.session_state.loaded_identity = identity_key
+    return supabase
+
+
+def save():
+    if SUPABASE is None or not st.session_state.get("student_id"):
+        return
+
+    data = {field: st.session_state[field] for field in storage.SAVED_FIELDS}
+
+    try:
+        storage.save_student(SUPABASE, st.session_state.student_id, data)
+    except Exception as error:
+        print("SAVE FAILED:", error)
+        st.toast("Couldn't save your latest changes. Check your connection.", icon="⚠️")
+
+
+def delete_my_data():
+    storage.delete_student(SUPABASE, st.session_state.student_id)
+
+    for field, empty in storage.SAVED_FIELDS.items():
+        st.session_state[field] = empty()
+
+    st.session_state.found_assignments = []
+    st.session_state.student_id = None
+    st.session_state.loaded_identity = None
+
+
+SUPABASE = load_student()
 
 
 # ============================================================
@@ -418,7 +615,7 @@ def date_context():
 # AI HELPER
 # ============================================================
 
-def ask_ai(prompt, system_message, conversation=None, use_json=True):
+def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None, model=MODEL):
     try:
         messages = [
             {
@@ -429,22 +626,25 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True):
 
         if conversation:
             messages[0]["content"] += "\n\n" + prompt
-            messages.extend(
-                {
+            for m in conversation:
+                model_message = {
                     "role": m["role"],
                     "content": m["content"]
                 }
-                for m in conversation
-            )
+                if m.get("images"):
+                    model_message["images"] = m["images"]
+                messages.append(model_message)
         else:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            )
+            user_message = {
+                "role": "user",
+                "content": prompt
+            }
+            if images:
+                user_message["images"] = images
+            messages.append(user_message)
+
         response = client.chat(
-            model=MODEL,
+            model=model,
             messages=messages,
             format="json" if use_json else None,
             options={
@@ -493,6 +693,105 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True):
 # ============================================================
 # ASSIGNMENT ANALYZER
 # ============================================================
+
+def _text(value, default):
+    if value is None:
+        return default
+    if isinstance(value, float) and value != value:
+        return default
+    value = str(value).strip()
+    return value or default
+
+
+def _whole_number(value, default):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def normalize_assignment(assignment):
+    priority = _text(assignment.get("priority"), "Medium").title()
+    if priority not in ("Low", "Medium", "High"):
+        priority = "Medium"
+
+    return {
+        "name": _text(assignment.get("name"), "Untitled assignment"),
+        "course": _text(assignment.get("course"), "General"),
+        "due_date": _text(assignment.get("due_date"), "Not set"),
+        "difficulty": min(5, max(1, _whole_number(assignment.get("difficulty"), 3))),
+        "estimated_minutes": max(5, _whole_number(assignment.get("estimated_minutes"), 60)),
+        "priority": priority,
+        "description": _text(assignment.get("description"), "")
+    }
+
+
+def find_assignments_in_upload(uploaded_file):
+    if uploads.is_pdf(uploaded_file):
+        document_text = uploads.pdf_text(uploaded_file)
+        source = f'Here is the text of the uploaded document:\n"""\n{document_text}\n"""'
+        images = None
+        model = MODEL
+    else:
+        images = [uploads.encode_image(uploaded_file)]
+        source = (
+            "The attached image is a photo of the student's assignment sheet, "
+            "syllabus, or planner page."
+        )
+        model = VISION_MODEL
+
+    prompt = f"""
+{date_context()}
+
+The student's courses are:
+{json.dumps(st.session_state.courses)}
+
+{source}
+
+Find every assignment, test, quiz, project, or other item with a due date.
+Return ONLY valid JSON.
+Use exactly this format:
+{{
+    "assignments": [
+        {{
+            "name": "",
+            "course": "",
+            "due_date": "YYYY-MM-DD",
+            "difficulty": 3,
+            "estimated_minutes": 60,
+            "priority": "Medium",
+            "description": ""
+        }}
+    ]
+}}
+
+Rules:
+- Only include items that actually appear in the document. Never invent items.
+- Match the course to one of the student's courses when it clearly fits.
+- If an item has no due date, use "Not set".
+- If a date has no year, use the next upcoming date.
+- Difficulty must be 1-5.
+- Priority must be Low, Medium, or High.
+- Estimate realistic focused work time.
+- If nothing is found, return {{"assignments": []}}.
+"""
+    result = ask_ai(
+        prompt,
+        "You are an AI academic planner that reads assignment sheets. "
+        "Return only valid JSON.",
+        images=images,
+        model=model
+    )
+
+    if result is None:
+        return None
+
+    found = result.get("assignments")
+    if not isinstance(found, list):
+        return []
+
+    return [normalize_assignment(item) for item in found if isinstance(item, dict)]
+
 
 def analyze_assignment(text):
 
@@ -635,15 +934,20 @@ RULES:
 - Difficulty must be 1-5.
 - Priority must be Low, Medium, or High.
 - Convert relative dates such as "next Friday" into YYYY-MM-DD.
+- If the student attached an image, look at it carefully and explain it.
+  For homework problems, walk through the steps so the student understands
+  how to solve it, instead of only giving the final answer.
 - Return ONLY valid JSON.
 """
     history = st.session_state.messages[-MAX_HISTORY_MESSAGES:]
+    has_images = any(m.get("images") for m in history)
 
     result = ask_ai(
         prompt,
         "You are StudyFlow AI, a helpful student study assistant. "
         "Return only valid JSON.",
-        conversation=history
+        conversation=history,
+        model=VISION_MODEL if has_images else MODEL
     )
 
     if result is None:
@@ -655,15 +959,7 @@ RULES:
         assignment = result.get("assignment")
 
         if isinstance(assignment, dict):
-            assignment = {
-                "name": assignment.get("name") or "Untitled assignment",
-                "course": assignment.get("course") or "General",
-                "due_date": assignment.get("due_date") or "Not set",
-                "difficulty": assignment.get("difficulty") or 3,
-                "estimated_minutes": assignment.get("estimated_minutes") or 60,
-                "priority": assignment.get("priority") or "Medium",
-                "description": assignment.get("description", "")
-            }
+            assignment = normalize_assignment(assignment)
 
             st.session_state.assignments.append(assignment)
 
@@ -686,6 +982,21 @@ RULES:
     return response_text
 
 
+def render_chat_message(message):
+    with st.chat_message(message["role"]):
+        if message.get("content"):
+            st.markdown(message["content"])
+
+        for image_data in message.get("images", []):
+            try:
+                st.image(uploads.decode_image(image_data), width=400)
+            except Exception:
+                st.caption("📷 This image couldn't be displayed.")
+
+        if message.get("had_image") and not message.get("images"):
+            st.caption("📷 An image was attached here (images aren't saved).")
+
+
 # ============================================================
 # SIDEBAR
 # ============================================================
@@ -695,6 +1006,17 @@ with st.sidebar:
     "assets/studyflow_logo.png",
     width=50
     )
+
+    if SUPABASE is None:
+        st.caption("💾 Saving is off because no database is connected.")
+    elif signed_in_with_google():
+        st.caption(f"Signed in as **{st.user.get('name') or st.user.get('email')}**")
+        if st.button("Sign out"):
+            st.logout()
+    else:
+        st.caption("💾 Your plan is saved on this browser only.")
+        if google_login_available() and st.button("Sign in with Google"):
+            st.login()
 
     st.title("⚙️ Setup")
     st.subheader("📚 Your Courses")
@@ -708,6 +1030,7 @@ with st.sidebar:
             st.session_state.courses.append(
                 course_input.strip()
             )
+            save()
 
     if st.session_state.courses:
         for course in st.session_state.courses:
@@ -748,28 +1071,37 @@ with st.sidebar:
                     "time": activity_time
                 }
             )
+            save()
 
     st.divider()
     st.subheader("⏰ Study Availability")
     availability = {}
 
-    days = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday"
-    ]
-
-    for day in days:
+    for day in DAYS:
         availability[day] = st.text_input(
             day,
-            placeholder="4:00 PM - 7:00 PM"
+            placeholder="4:00 PM - 7:00 PM",
+            key=f"availability_{day}"
         )
 
-    st.session_state.availability = availability
+    if availability != st.session_state.availability:
+        st.session_state.availability = availability
+        save()
+
+    if SUPABASE is not None and st.session_state.get("student_id"):
+        st.divider()
+        with st.expander("🔒 Your data"):
+            st.caption(
+                "StudyFlow saves your courses, activities, availability, "
+                "assignments, study plan, and chat messages so they're here "
+                "next time. Images you attach are never saved. If you sign in "
+                "with Google, StudyFlow keeps only an ID from Google, not your "
+                "email address."
+            )
+            confirm_delete = st.checkbox("I want to delete all my StudyFlow data")
+            if st.button("Delete my data", disabled=not confirm_delete):
+                delete_my_data()
+                st.rerun()
 
 
 # ============================================================
@@ -840,13 +1172,95 @@ with tab1:
 
             if assignment:
                 st.session_state.assignments.append(
-                    assignment
+                    normalize_assignment(assignment)
                 )
+                save()
 
                 st.success(
                     "Assignment added!"
                 )
 
+                st.rerun()
+
+    st.subheader("📷 Or upload an assignment sheet")
+    st.caption(
+        "Upload a photo of an assignment sheet, syllabus, or planner page, "
+        "or a PDF. StudyFlow will find the assignments so you can check them "
+        "before adding."
+    )
+    uploaded_file = st.file_uploader(
+        "Photo or PDF",
+        type=uploads.IMAGE_TYPES + ["pdf"],
+        key="assignment_upload"
+    )
+
+    if st.button(
+        "🔍 Find Assignments",
+        use_container_width=True,
+        disabled=uploaded_file is None
+    ):
+        found = None
+        try:
+            with st.spinner("🤖 Reading your file..."):
+                found = find_assignments_in_upload(uploaded_file)
+        except ValueError as error:
+            st.error(str(error))
+
+        if found == []:
+            st.info("I couldn't find any assignments in that file.")
+        elif found:
+            st.session_state.found_assignments = found
+            st.session_state.found_batch += 1
+
+    if st.session_state.found_assignments:
+        st.write(
+            "**Here's what I found.** Uncheck anything you don't want "
+            "and fix any mistakes, then add them."
+        )
+        edited = st.data_editor(
+            [{"add": True, **item} for item in st.session_state.found_assignments],
+            key=f"found_editor_{st.session_state.found_batch}",
+            hide_index=True,
+            use_container_width=True,
+            column_order=[
+                "add",
+                "name",
+                "course",
+                "due_date",
+                "difficulty",
+                "estimated_minutes",
+                "priority",
+                "description"
+            ],
+            column_config={
+                "add": st.column_config.CheckboxColumn("Add?"),
+                "name": st.column_config.TextColumn("Assignment"),
+                "course": st.column_config.TextColumn("Course"),
+                "due_date": st.column_config.TextColumn("Due (YYYY-MM-DD)"),
+                "difficulty": st.column_config.NumberColumn("Difficulty", min_value=1, max_value=5, step=1),
+                "estimated_minutes": st.column_config.NumberColumn("Minutes", min_value=5, step=5),
+                "priority": st.column_config.SelectboxColumn("Priority", options=["Low", "Medium", "High"]),
+                "description": st.column_config.TextColumn("Notes")
+            }
+        )
+
+        add_column, discard_column = st.columns(2)
+
+        with add_column:
+            if st.button("✅ Add Selected", type="primary", use_container_width=True):
+                chosen = [
+                    normalize_assignment(row)
+                    for row in edited
+                    if row.get("add")
+                ]
+                st.session_state.assignments.extend(chosen)
+                st.session_state.found_assignments = []
+                save()
+                st.rerun()
+
+        with discard_column:
+            if st.button("Discard", use_container_width=True):
+                st.session_state.found_assignments = []
                 st.rerun()
 
     st.divider()
@@ -906,6 +1320,7 @@ with tab1:
                         st.session_state.assignments.pop(
                             i
                         )
+                        save()
                         st.rerun()
 
 # ============================================================
@@ -929,6 +1344,7 @@ with tab2:
                 plan = generate_plan()
             if plan:
                 st.session_state.study_plan = plan
+                save()
                 st.success(
                     "Study plan generated!"
                 )
@@ -990,42 +1406,67 @@ with tab3:
     st.header("💬 StudyFlow AI")
     st.write(
         "Tell me about assignments, tests, or "
-        "your study workload."
-    )
-    for message in st.session_state.messages:
-        with st.chat_message(
-            message["role"]
-        ):
-            st.markdown(
-                message["content"]
-            )
-
-    user_message = st.chat_input(
-        "Example: I have a biology test Friday..."
+        "your study workload. Attach a photo of a worksheet or "
+        "problem and I'll explain it step by step."
     )
 
-    if user_message:
-        st.session_state.messages.append(
-            {
+    if st.session_state.messages and st.button("🗑️ Clear chat"):
+        st.session_state.messages = []
+        save()
+        st.rerun()
+
+    conversation_area = st.container()
+
+    with conversation_area:
+        for message in st.session_state.messages:
+            render_chat_message(message)
+
+    submission = st.chat_input(
+        "Example: I have a biology test Friday...",
+        accept_file=True,
+        file_type=uploads.IMAGE_TYPES,
+        key="chat_box"
+    )
+
+    if submission:
+        message_text = (submission.text or "").strip()
+        message_images = []
+
+        if submission.files:
+            try:
+                message_images = [uploads.encode_image(submission.files[0])]
+            except ValueError as error:
+                st.error(str(error))
+
+        if message_images and not message_text:
+            message_text = "Can you explain this?"
+
+        if message_text:
+            user_message = {
                 "role": "user",
-                "content": user_message
+                "content": message_text,
+                "images": message_images
             }
-        )
-        with st.chat_message("user"):
-            st.write(user_message)
-        assignment_count = len(st.session_state.assignments)
+            st.session_state.messages.append(user_message)
 
-        with st.chat_message("assistant"):
-            with st.spinner(
-                "🤖 Thinking..."
-            ):
-                reply = chatbot(user_message)
+            with conversation_area:
+                render_chat_message(user_message)
 
-            if len(st.session_state.assignments) > assignment_count:
-                st.rerun()
+                assignment_count = len(st.session_state.assignments)
 
-            if reply:
-                st.markdown(reply)
+                with st.chat_message("assistant"):
+                    with st.spinner(
+                        "🤖 Thinking..."
+                    ):
+                        reply = chatbot(message_text)
+
+                    save()
+
+                    if len(st.session_state.assignments) > assignment_count:
+                        st.rerun()
+
+                    if reply:
+                        st.markdown(reply)
 
 # ============================================================
 # FOOTER
