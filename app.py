@@ -22,7 +22,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.markdown("""
+dark_css= """
 <style>
 
 /* ============================================================
@@ -439,7 +439,442 @@ div[data-baseweb="select"] {
 }
 
 </style>
-""", unsafe_allow_html=True)
+"""
+
+#===================================================================================================================
+# LIGHT MODE
+#===================================================================================================================
+
+
+light_css = """
+<style>
+
+/* ============================================================
+   FONTS
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
+
+
+/* ============================================================
+   MAIN APP
+   ============================================================ */
+
+.stApp {
+    background-color: F8FAFC;
+    color: #172033;
+}
+
+
+[data-testid="stHeader"] {
+    background-color: #F8FAFC;
+}
+
+[data-testid="stHeader"] > div {
+    background-color: #F8FAFC;
+}
+
+
+.main .block-container {
+    color: #172033;
+}
+
+
+/* ============================================================
+   TEXT
+   ============================================================ */
+
+p {
+    color: #172033 !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+label {
+    color: #475569 !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+small {
+    color: #64748B !important;
+}
+
+
+/* ============================================================
+   HEADINGS
+   ============================================================ */
+
+h1, h2, h3 {
+    font-family: 'Sora', sans-serif !important;
+    color: #172033 !important;
+}
+
+
+/* ============================================================
+   STUDYFLOW AI TITLE
+   ============================================================ */
+
+.studyflow-title {
+    font-family: 'Sixtyfour', monospace !important;
+    font-size: 42px;
+    font-weight: 400 !important;
+    letter-spacing: -1px;
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.studyflow-title .brand-name {
+    color: #172033 !important;
+    font-family: 'Sixtyfour', monospace !important;
+}
+
+.studyflow-title .brand-ai {
+    color: #7C3AED !important;
+    font-family: 'Sixtyfour', monospace !important;
+}
+
+
+/* ============================================================
+   SUBTITLE
+   ============================================================ */
+
+.studyflow-subtitle {
+    font-family: 'Inter', sans-serif !important;
+    color: #64748B !important;
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+
+/* ============================================================
+   TEXT INPUTS
+   ============================================================ */
+
+.stTextInput input {
+    background-color: #FFFFFF !important;
+    color: #172033 !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+}
+
+.stTextInput input::placeholder {
+    color: #94A3B8 !important;
+    opacity: 1 !important;
+}
+
+.stTextInput input:focus {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+
+/* ============================================================
+   TEXT AREAS
+   ============================================================ */
+
+.stTextArea textarea {
+    background-color: #FFFFFF !important;
+    color: #172033 !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+}
+
+.stTextArea textarea::placeholder {
+    color: #9413B8 !important;
+    opacity: 1 !important;
+}
+
+.stTextArea textarea:focus {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+
+/* ============================================================
+   SELECT BOX
+   ============================================================ */
+
+.stSelectbox [data-baseweb="select"] > div {
+    background-color: #FFFFFF !important;
+    color: #172033 !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+}
+
+.stSelectbox [data-baseweb="select"] span {
+    color: #F8FAFC !important;
+}
+
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.stButton > button {
+    background-color: #7C3AED !important;
+    color: #FFFFFF !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+
+    transition: background-color 0.2s ease;
+}
+
+.stButton > button:hover {
+    background-color: #6D28D9 !important;
+    color: #FFFFFF !important;
+}
+
+.stButton > button:focus {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+
+[data-testid="stSidebar"] {
+    background-color: #F1F5F9 !important;
+}
+
+[data-testid="stSidebar"] * {
+    font-family: 'Inter', sans-serif;
+}
+
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #172033 !important;
+}
+
+[data-testid="stSidebar"] label {
+    color: #475569 !important;
+}
+
+
+/* ============================================================
+   TABS
+   ============================================================ */
+
+.stTabs [data-baseweb="tab-list"] {
+    background-color: transparent !important;
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    color: #64748B !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600;
+}
+
+.stTabs [aria-selected="true"] {
+    color: #7C3AED !important;
+}
+
+
+/* ============================================================
+   DIVIDERS
+   ============================================================ */
+
+hr {
+    border: none !important;
+    border-top: 1px solid #E2E8F0 !important;
+}
+
+
+/* ============================================================
+   CONTAINERS / CARDS
+   ============================================================ */
+
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: #FFFFFF !important;
+
+    border: none !important;
+    border-radius: 12px !important;
+}
+
+
+/* ============================================================
+   CHAT
+   ============================================================ */
+
+[data-testid="stChatMessage"] {
+    background: rgba(255, 255, 255, .92) !important;
+    border: 1px solid rgba(148, 163, 184, .12) !important;
+    border-radius: 16px !important;
+    padding: 1rem 1.1rem !important;
+    margin: .75rem 0 !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .10);
+}
+
+[data-testid="stChatMessage"] p,
+[data-testid="stChatMessage"] li {
+    line-height: 1.65;
+}
+
+[data-testid="stChatMessage"] li,
+[data-testid="stChatMessage"] td,
+[data-testid="stChatMessage"] th,
+[data-testid="stChatMessage"] blockquote,
+[data-testid="stChatMessage"] h4,
+[data-testid="stChatMessage"] h5 {
+    color: #172033 !important;
+}
+
+[data-testid="stChatMessage"] li::marker {
+    color: #7C3AED;
+}
+
+[data-testid="stChatInput"] {
+    background: #18233d !important;
+    border: 1px solid rgba(124, 58, 237, .30) !important;
+    border-radius: 15px !important;
+}
+
+[data-testid="stChatInput"] > div {
+    background: transparent !important;
+    border: none !important;
+}
+
+[data-testid="stChatInput"] textarea {
+    color: #172033 !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+[data-testid="stChatInput"] textarea::placeholder {
+    color: #94A3B8 !important;
+}
+
+[data-testid="stChatInput"] button {
+    color: #7C3AED !important;
+}
+
+.chat-kicker {
+    color: #7C3AED;
+    font-family: 'DM Mono', monospace;
+    font-size: .72rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    margin-bottom: .4rem;
+}
+
+.chat-subtitle {
+    color: #64778B !important;
+    font-size: 1rem;
+    line-height: 1.65;
+    max-width: 39rem;
+    margin: .25rem 0 1.25rem;
+}
+
+.welcome-card {
+    background: linear-gradient(115deg, rgba(237, 233, 23247, .90), rgba(248, 250, 252, .20));
+    border: 1px solid rgba(124, 58, 252, .20);
+    border-radius: 18px;
+    padding: 1.15rem 1.25rem;
+    margin: .5rem 0 1.5rem;
+    color: #4C1D95;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+}
+
+.welcome-card strong {
+    color: #fff;
+}
+
+
+/* ============================================================
+   GENERAL STREAMLIT COMPONENT BORDERS
+   ============================================================ */
+
+div[data-baseweb="input"] {
+    border: none !important;
+}
+
+div[data-baseweb="textarea"] {
+    border: none !important;
+}
+
+div[data-baseweb="select"] {
+    border: none !important;
+}
+
+
+/* ============================================================
+   FILE UPLOADER
+   ============================================================ */
+
+[data-testid="stFileUploaderDropzone"] {
+    background-color: #FFFFFF !important;
+    border: 1px dashed #CBD5E1 !important;
+    border-radius: 10px !important;
+}
+
+[data-testid="stFileUploaderDropzone"] span,
+[data-testid="stFileUploaderDropzone"] small,
+[data-testid="stFileUploaderDropzone"] p {
+    color: #475569 !important;
+}
+
+[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+    background-color: #E2E8F0 !important;
+    color: #172033 !important;
+    border: none !important;
+}
+
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 10px;
+}
+
+[data-testid="stSidebarCollapseButton"] button {
+    color: #475569 !important;
+}
+
+[data-testid="stSidebarCollapseButton"] button span {
+    font-family: 'Material Symbols Rounded' !important;
+    font-size: 24px !important;
+}
+
+</style>
+"""
+# ============================================================
+# THEME SELECTION
+# ============================================================
+
+if "theme" not in st.session_state:
+    st.session_state.theme = "Dark"
+
+if st.session_state.theme == "Dark":
+    st.markdown(dark_css, unsafe_allow_html=True)
+else:
+    st.markdown(light_css, unsafe_allow_html=True)
 
 # ============================================================
 # CONNECT TO OLLAMA
@@ -1084,6 +1519,24 @@ with st.sidebar:
     width=50
     )
 
+    st.divider()
+
+    if st.button(
+        "☀️ Switch to Light Mode"
+        if st.session_state.theme == "Dark"
+        else "🌙 Switch to Dark Mode",
+        key="theme_toggle",
+        use_container_width=True
+    ):
+        st.session_state.theme = (
+            "Light"
+            if st.session_state.theme == "Dark"
+            else "Dark"
+        )
+        st.rerun()
+
+    st.divider()
+
     if SUPABASE is None:
         st.caption("💾 Saving is off because no database is connected.")
     elif signed_in_with_google():
@@ -1598,4 +2051,4 @@ with tab3:
 st.divider()
 st.caption(
     "StudyFlow AI • Powered by Ollama"
-)
+)
