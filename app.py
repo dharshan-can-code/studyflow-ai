@@ -8,6 +8,7 @@ from ollama import Client
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 
+import setup_forms as setup
 import storage
 import uploads
 
@@ -194,7 +195,7 @@ h1, h2, h3 {
    BUTTONS
    ============================================================ */
 
-.stButton > button {
+.stButton button {
     background-color: #6366F1 !important;
     color: #FFFFFF !important;
 
@@ -207,12 +208,12 @@ h1, h2, h3 {
     transition: background-color 0.2s ease;
 }
 
-.stButton > button:hover {
+.stButton button:hover {
     background-color: #8B5CF6 !important;
     color: #FFFFFF !important;
 }
 
-.stButton > button:focus {
+.stButton button:focus {
     border: none !important;
     box-shadow: none !important;
 }
@@ -413,6 +414,132 @@ div[data-baseweb="select"] {
 
 
 /* ============================================================
+   GREETING AND SETUP
+   ============================================================ */
+
+.greeting {
+    font-family: 'Sora', sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: #F8FAFC;
+    margin-top: 4px;
+}
+
+.greeting-date {
+    font-family: 'Inter', sans-serif;
+    color: #94A3B8;
+    font-size: 15px;
+    margin-bottom: 6px;
+}
+
+.wizard-title {
+    font-size: 30px;
+    text-align: center;
+    margin: 24px 0 16px;
+}
+
+[data-testid="stSidebar"] [data-testid="stIconMaterial"] {
+    font-family: 'Material Symbols Rounded' !important;
+}
+
+[data-testid="stToast"] {
+    background-color: #1E293B !important;
+    border: 1px solid #334155 !important;
+}
+
+.stButton button[kind="tertiary"] {
+    background: transparent !important;
+    color: #94A3B8 !important;
+    font-weight: 500 !important;
+}
+
+.stButton button[kind="tertiary"]:hover {
+    background: transparent !important;
+    color: #F8FAFC !important;
+}
+
+[data-testid="stProgressBarTrack"],
+[data-testid="stProgress"] [role="progressbar"] > div {
+    background-color: #1E293B !important;
+}
+
+[data-testid="stProgressBarTrack"] > div,
+[data-testid="stProgress"] [role="progressbar"] > div > div {
+    background-color: #8B5CF6 !important;
+}
+
+[data-testid="stSelectbox"] [role="group"],
+[data-testid="stNumberInputContainer"],
+[data-testid="stNumberInput"] input,
+[data-testid="stTimeInputTimeDisplay"],
+[data-testid="stTimeInput"] [data-baseweb="select"] > div,
+[data-testid="stTimeInput"] [data-baseweb="input"] {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+    border-radius: 10px !important;
+}
+
+[data-testid="stSelectbox"] [role="group"] *,
+[data-testid="stNumberInputContainer"] input,
+[data-testid="stTimeInput"] input,
+[data-testid="stTimeInputTimeDisplay"] * {
+    color: #F8FAFC !important;
+    background-color: transparent !important;
+}
+
+[data-testid="stNumberInputContainer"] button {
+    background-color: #334155 !important;
+    color: #F8FAFC !important;
+}
+
+[role="listbox"],
+[data-baseweb="popover"] ul,
+[data-baseweb="popover"] [role="dialog"] {
+    background-color: #1E293B !important;
+}
+
+[role="option"],
+[role="option"] * {
+    color: #F8FAFC !important;
+}
+
+[role="option"]:hover,
+[role="option"][data-focused="true"],
+[role="option"][aria-selected="true"] {
+    background-color: #334155 !important;
+}
+
+[data-testid="stButtonGroup"] button {
+    background-color: #1E293B !important;
+    border: 1px solid #334155 !important;
+    color: #CBD5E1 !important;
+}
+
+[data-testid="stButtonGroup"] button p {
+    color: #CBD5E1 !important;
+}
+
+[data-testid="stButtonGroup"] button:hover {
+    border-color: #8B5CF6 !important;
+}
+
+[data-testid="stButtonGroup"] button[aria-pressed="true"],
+[data-testid="stButtonGroup"] button[aria-checked="true"],
+[data-testid="stButtonGroup"] button[data-selected="true"],
+[data-testid="stButtonGroup"] button[kind$="Active"] {
+    background-color: rgba(139, 92, 246, .25) !important;
+    border-color: #8B5CF6 !important;
+}
+
+[data-testid="stButtonGroup"] button[aria-pressed="true"] p,
+[data-testid="stButtonGroup"] button[aria-checked="true"] p,
+[data-testid="stButtonGroup"] button[data-selected="true"] p,
+[data-testid="stButtonGroup"] button[kind$="Active"] p {
+    color: #F8FAFC !important;
+}
+
+
+/* ============================================================
    SCROLLBAR
    ============================================================ */
 
@@ -478,14 +605,12 @@ MAX_HISTORY_MESSAGES = 50
 
 GUEST_COOKIE = "studyflow_guest_token"
 
-DAYS = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday"
+SETUP_STEPS = [
+    ("Basic Info", "Tell us about yourself"),
+    ("Your Courses", "Add the classes you're taking this year"),
+    ("Activities", "Sports, clubs, a job: anything that takes up your time"),
+    ("Daily Routine", "When your day starts, ends, and when you do homework"),
+    ("Study Preferences", "How you like to study, so your plan fits you")
 ]
 
 
@@ -502,6 +627,18 @@ if "found_assignments" not in st.session_state:
 
 if "found_batch" not in st.session_state:
     st.session_state.found_batch = 0
+
+
+def prepare_saved_data():
+    st.session_state.courses = setup.normalize_courses(st.session_state.courses)
+    st.session_state.activities = setup.normalize_activities(st.session_state.activities)
+    st.session_state.profile = setup.complete_profile(st.session_state.profile)
+    st.session_state.study_style = setup.complete_study_style(st.session_state.study_style)
+
+
+if "data_prepared" not in st.session_state:
+    prepare_saved_data()
+    st.session_state.data_prepared = True
 
 
 # ============================================================
@@ -629,9 +766,9 @@ def load_student():
     for field, value in storage.saved_data(student).items():
         st.session_state[field] = value
 
-    for day in DAYS:
-        st.session_state[f"availability_{day}"] = st.session_state.availability.get(day, "")
-
+    prepare_saved_data()
+    setup.reset_form_state()
+    st.session_state.wizard_step = 0
     st.session_state.found_assignments = []
     st.session_state.student_id = student["id"]
     st.session_state.loaded_identity = identity_key
@@ -648,7 +785,13 @@ def save():
         storage.save_student(SUPABASE, st.session_state.student_id, data)
     except Exception as error:
         print("SAVE FAILED:", error)
-        st.toast("Couldn't save your latest changes. Check your connection.", icon="⚠️")
+        if "profile" in str(error) or "study_style" in str(error):
+            st.error(
+                "Your database is missing the new setup columns. "
+                "Run supabase/add_setup.sql in the Supabase SQL Editor."
+            )
+        else:
+            st.toast("Couldn't save your latest changes. Check your connection.", icon="⚠️")
 
 
 def delete_my_data():
@@ -657,6 +800,9 @@ def delete_my_data():
     for field, empty in storage.SAVED_FIELDS.items():
         st.session_state[field] = empty()
 
+    prepare_saved_data()
+    setup.reset_form_state()
+    st.session_state.wizard_step = 0
     st.session_state.found_assignments = []
     st.session_state.student_id = None
     st.session_state.loaded_identity = None
@@ -671,11 +817,19 @@ SUPABASE = load_student()
 # DATE HELPER
 # ============================================================
 
-def date_context():
+def student_now():
+    zone = st.session_state.profile.get("timezone") or APP_TIMEZONE
     try:
-        today = datetime.now(ZoneInfo(APP_TIMEZONE)).date()
+        return datetime.now(ZoneInfo(zone))
     except Exception:
-        today = datetime.now().date()
+        try:
+            return datetime.now(ZoneInfo(APP_TIMEZONE))
+        except Exception:
+            return datetime.now()
+
+
+def date_context():
+    today = student_now().date()
 
     lines = [
         f"Today is {today:%A}, {today:%Y-%m-%d}.",
@@ -822,7 +976,7 @@ def find_assignments_in_upload(uploaded_file):
 {date_context()}
 
 The student's courses are:
-{json.dumps(st.session_state.courses)}
+{json.dumps(setup.course_names(st.session_state.courses))}
 
 {source}
 
@@ -914,32 +1068,41 @@ Rules:
 def generate_plan():
     if not st.session_state.assignments:
         return None
-    availability = st.session_state.availability
+    student = setup.describe_for_ai(
+        st.session_state.profile,
+        st.session_state.courses,
+        st.session_state.activities,
+        st.session_state.study_style
+    )
     prompt = f"""
 {date_context()}
-The student's courses are:
-{json.dumps(st.session_state.courses, indent=4)}
-The student's extracurricular activities are:
-{json.dumps(st.session_state.activities, indent=4)}
-The student's available study times are:
-{json.dumps(availability, indent=4)}
+
+About the student:
+{student}
+
 The student's assignments are:
 {json.dumps(st.session_state.assignments, indent=4)}
+
 Create a realistic study schedule.
 
 Rules:
 1. Earlier deadlines have higher priority.
 2. Difficult assignments should receive more preparation.
 3. Large assignments should be split across multiple sessions.
-4. Do not schedule more than 90 minutes of one assignment
-   in a single session.
-5. Do not schedule outside the student's availability.
-6. Do not schedule after the assignment's due date.
-7. Spread work across multiple days whenever possible.
-8. Avoid overwhelming the student.
-9. Include a specific task for every study session.
-10. Do not schedule during extracurricular activities.
-11. Leave reasonable breaks between sessions.
+4. Make each session about the student's preferred session length,
+   and never longer than 90 minutes.
+5. On school days (Mon-Fri), only schedule between the homework start time
+   and 30 minutes before bedtime.
+6. Only schedule on weekends if the student studies on weekends.
+7. Never schedule during classes, dinner, or the student's activities.
+8. Do not schedule after the assignment's due date.
+9. Never go over the student's maximum study minutes per day.
+10. If the student wants lighter Fridays, keep Friday to about half the usual amount.
+11. If the student wants a Sunday catch-up day, keep Sunday free for catching up and review.
+12. Leave the student's preferred break length between sessions.
+13. Put harder work during the student's peak productivity time when possible.
+14. Spread work across multiple days and avoid overwhelming the student.
+15. Include a specific task for every study session.
 
 Return ONLY valid JSON.
 Use exactly this format:
@@ -980,11 +1143,17 @@ UNFINISHED_TAG = re.compile(r"<add_assignment>.*$", re.S)
 
 
 def chat_context():
+    student = setup.describe_for_ai(
+        st.session_state.profile,
+        st.session_state.courses,
+        st.session_state.activities,
+        st.session_state.study_style
+    )
     return f"""
 {date_context()}
 
-The student's courses are:
-{json.dumps(st.session_state.courses)}
+About the student (use their first name naturally, and keep their schedule and preferences in mind):
+{student}
 
 The student's current assignments are:
 {json.dumps(st.session_state.assignments, indent=2)}
@@ -1075,6 +1244,136 @@ def render_chat_message(message):
 
 
 # ============================================================
+# SETUP WIZARD
+# ============================================================
+
+def suggested_name():
+    if signed_in_with_google():
+        return st.user.get("name") or ""
+    return ""
+
+
+def render_setup_section(step, prefix):
+    if step == 0:
+        return setup.profile_form(prefix, st.session_state.profile, suggested_name())
+    if step == 1:
+        return setup.courses_editor(prefix, st.session_state.courses)
+    if step == 2:
+        return setup.activities_editor(prefix, st.session_state.activities)
+    if step == 3:
+        return setup.routine_form(prefix, st.session_state.study_style)
+    return setup.preferences_form(prefix, st.session_state.study_style)
+
+
+def commit_setup_section(step, values, prefix):
+    if step == 0:
+        st.session_state.profile = {**st.session_state.profile, **values}
+    elif step == 1:
+        st.session_state.courses = [course for course in values if course["name"]]
+        st.session_state[f"{prefix}_courses_draft"] = list(st.session_state.courses)
+    elif step == 2:
+        st.session_state.activities = [item for item in values if item["name"]]
+        st.session_state[f"{prefix}_activities_draft"] = list(st.session_state.activities)
+    else:
+        st.session_state.study_style = {**st.session_state.study_style, **values}
+
+
+def finish_setup():
+    st.session_state.profile = {**st.session_state.profile, "onboarded": True}
+    save()
+    setup.reset_form_state()
+    st.session_state.wizard_step = 0
+
+
+def show_setup_wizard():
+    step = min(st.session_state.get("wizard_step", 0), len(SETUP_STEPS) - 1)
+    title, subtitle = SETUP_STEPS[step]
+    last_step = step == len(SETUP_STEPS) - 1
+
+    _, middle, _ = st.columns([1, 2.6, 1])
+
+    with middle:
+        st.markdown(
+            """
+            <div class="studyflow-title wizard-title">
+                <span class="brand-name">StudyFlow</span>
+                <span class="brand-ai"> AI</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        with st.container(border=True):
+            st.markdown(
+                f'<div class="chat-kicker">Step {step + 1} of {len(SETUP_STEPS)}</div>',
+                unsafe_allow_html=True
+            )
+            st.subheader(title)
+            st.caption(subtitle)
+            st.progress((step + 1) / len(SETUP_STEPS))
+
+            values = render_setup_section(step, "setup")
+
+            back_column, _, next_column = st.columns([1, 1.5, 1])
+
+            with back_column:
+                go_back = st.button(
+                    "‹ Back",
+                    disabled=step == 0,
+                    use_container_width=True,
+                    key="wizard_back"
+                )
+
+            with next_column:
+                go_next = st.button(
+                    "Finish ✓" if last_step else "Continue ›",
+                    type="primary",
+                    use_container_width=True,
+                    key="wizard_next"
+                )
+
+        skip = st.button(
+            "Skip setup for now",
+            type="tertiary",
+            key="wizard_skip",
+            help="You can fill this in later from the Settings tab."
+        )
+
+    if go_back:
+        commit_setup_section(step, values, "setup")
+        st.session_state.wizard_step = step - 1
+        st.rerun()
+
+    if go_next:
+        if step == 0 and not values["name"]:
+            with middle:
+                st.warning("Please enter your name to continue.")
+            st.stop()
+
+        commit_setup_section(step, values, "setup")
+
+        if last_step:
+            finish_setup()
+            st.session_state.flash = "You're all set! Welcome to StudyFlow."
+        else:
+            save()
+            st.session_state.wizard_step = step + 1
+
+        st.rerun()
+
+    if skip:
+        commit_setup_section(step, values, "setup")
+        finish_setup()
+        st.rerun()
+
+    st.stop()
+
+
+if not st.session_state.profile.get("onboarded"):
+    show_setup_wizard()
+
+
+# ============================================================
 # SIDEBAR
 # ============================================================
 
@@ -1095,81 +1394,28 @@ with st.sidebar:
         if google_login_available() and st.button("Sign in with Google"):
             st.login()
 
-    st.title("⚙️ Setup")
-    st.subheader("📚 Your Courses")
-    course_input = st.text_input(
-        "Add a course",
-        placeholder="Algebra 2"
-    )
-
-    if st.button("Add Course"):
-        if course_input.strip():
-            st.session_state.courses.append(
-                course_input.strip()
-            )
-            save()
-
-    if st.session_state.courses:
-        for course in st.session_state.courses:
-            st.write("•", course)
-
     st.divider()
-    st.subheader("🏃 Activities")
+    st.subheader("📋 Your Setup")
 
-    activity_name = st.text_input(
-        "Activity",
-        placeholder="Soccer practice"
+    course_count = len(setup.course_names(st.session_state.courses))
+    activity_count = len([a for a in st.session_state.activities if a.get("name")])
+    routine = st.session_state.study_style
+
+    st.caption(
+        f"📚 {course_count} course{'s' if course_count != 1 else ''} · "
+        f"🏃 {activity_count} activit{'ies' if activity_count != 1 else 'y'}"
     )
-
-    activity_day = st.selectbox(
-        "Day",
-        [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday"
-        ]
+    st.caption(
+        f"⏰ Homework from {setup.pretty_time(routine.get('homework_start'))}, "
+        f"bedtime {setup.pretty_time(routine.get('bed'))}"
     )
-
-    activity_time = st.text_input(
-        "Time",
-        placeholder="4:00 PM - 6:00 PM"
-    )
-
-    if st.button("Add Activity"):
-        if activity_name.strip():
-            st.session_state.activities.append(
-                {
-                    "name": activity_name,
-                    "day": activity_day,
-                    "time": activity_time
-                }
-            )
-            save()
-
-    st.divider()
-    st.subheader("⏰ Study Availability")
-    availability = {}
-
-    for day in DAYS:
-        availability[day] = st.text_input(
-            day,
-            placeholder="4:00 PM - 7:00 PM",
-            key=f"availability_{day}"
-        )
-
-    if availability != st.session_state.availability:
-        st.session_state.availability = availability
-        save()
+    st.caption("Change these anytime in the ⚙️ Settings tab.")
 
     if SUPABASE is not None and st.session_state.get("student_id"):
         st.divider()
         with st.expander("🔒 Your data"):
             st.caption(
-                "StudyFlow saves your courses, activities, availability, "
+                "StudyFlow saves your profile, courses, activities, routine, "
                 "assignments, study plan, and chat messages so they're here "
                 "next time. Images you attach are never saved. If you sign in "
                 "with Google, StudyFlow keeps only an ID from Google, not your "
@@ -1200,10 +1446,18 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.write(
-    "Add your assignments, tests, and activities. "
-    "StudyFlow will turn them into a realistic study schedule."
+now = student_now()
+part_of_day = "morning" if now.hour < 12 else "afternoon" if now.hour < 17 else "evening"
+first_name = (st.session_state.profile.get("name") or "").split(" ")[0]
+
+st.markdown(
+    f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} 👋</div>'
+    f'<div class="greeting-date">{now:%A, %B} {now.day}</div>',
+    unsafe_allow_html=True
 )
+
+if "flash" in st.session_state:
+    st.toast(st.session_state.pop("flash"), icon="✅")
 
 st.divider()
 
@@ -1211,11 +1465,12 @@ st.divider()
 # TABS
 # ============================================================
 
-tab1, tab2, tab3 = st.tabs(
+tab1, tab2, tab3, tab4 = st.tabs(
     [
         "📝 Assignments",
         "📅 Study Plan",
-        "💬 AI Assistant"
+        "💬 AI Assistant",
+        "⚙️ Settings"
     ]
 )
 
@@ -1500,7 +1755,7 @@ with tab3:
 
         if not st.session_state.messages:
             welcome_slot.markdown(
-                '<div class="welcome-card"><strong>Hi, I\'m StudyFlow AI 👋</strong><br>'
+                '<div class="welcome-card"><strong>Hi, I\'m StudyFlow AI </strong><br>'
                 'Tell me about a test, ask me to explain something, or say '
                 '"add my bio test on Friday" and I\'ll put it in your planner.</div>',
                 unsafe_allow_html=True
@@ -1592,10 +1847,68 @@ with tab3:
     )
 
 # ============================================================
+# SETTINGS TAB
+# ============================================================
+
+with tab4:
+    st.header("⚙️ Settings")
+    st.markdown(
+        '<p class="chat-subtitle">Edit your profile, courses, and study preferences.</p>',
+        unsafe_allow_html=True
+    )
+
+    profile_tab, courses_tab, activities_tab, style_tab = st.tabs(
+        [
+            "👤 Profile",
+            "📚 Courses",
+            "🏃 Activities",
+            "✨ Study Style"
+        ]
+    )
+
+    with profile_tab:
+        profile_values = render_setup_section(0, "settings")
+        if st.button("💾 Save profile", type="primary", key="save_profile_button"):
+            if not profile_values["name"]:
+                st.warning("Please enter your name.")
+            else:
+                commit_setup_section(0, profile_values, "settings")
+                save()
+                st.session_state.flash = "Profile saved"
+                st.rerun()
+
+    with courses_tab:
+        course_values = render_setup_section(1, "settings")
+        if st.button("💾 Save courses", type="primary", key="save_courses_button"):
+            commit_setup_section(1, course_values, "settings")
+            save()
+            st.session_state.flash = "Courses saved"
+            st.rerun()
+
+    with activities_tab:
+        activity_values = render_setup_section(2, "settings")
+        if st.button("💾 Save activities", type="primary", key="save_activities_button"):
+            commit_setup_section(2, activity_values, "settings")
+            save()
+            st.session_state.flash = "Activities saved"
+            st.rerun()
+
+    with style_tab:
+        st.subheader("Daily Routine")
+        routine_values = render_setup_section(3, "settings")
+        st.subheader("Study Preferences")
+        preference_values = render_setup_section(4, "settings")
+        if st.button("💾 Save study style", type="primary", key="save_style_button"):
+            commit_setup_section(3, {**routine_values, **preference_values}, "settings")
+            save()
+            st.session_state.flash = "Study style saved"
+            st.rerun()
+
+# ============================================================
 # FOOTER
 # ============================================================
 
 st.divider()
 st.caption(
     "StudyFlow AI • Powered by Ollama"
-)
+)
