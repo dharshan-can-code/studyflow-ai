@@ -12,8 +12,6 @@ SAVED_FIELDS = {
     "assignments": list,
     "study_plan": lambda: None,
     "messages": list,
-    "profile": dict,
-    "study_style": dict,
 }
 
 
