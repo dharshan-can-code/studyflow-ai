@@ -1,4 +1,5 @@
 import streamlit as st
+import html
 import json
 import re
 import secrets
@@ -1036,6 +1037,9 @@ def analyze_assignment(text):
     prompt = f"""
 {date_context()}
 
+The student's courses are:
+{json.dumps(setup.course_names(st.session_state.courses))}
+
 Analyze this student's academic task:
 "{text}"
 Return ONLY valid JSON.
@@ -1058,6 +1062,8 @@ Rules:
 - Estimate realistic focused work time.
 - Use YYYY-MM-DD for the due date.
 - Do not invent unnecessary information.
+- Match the course to one of the student's courses when it clearly fits,
+  using that course's exact name.
 - If the student gives a relative date such as
   "next Tuesday", convert it into the correct date.
 """
@@ -1268,7 +1274,7 @@ def render_setup_section(step, prefix):
         return setup.activities_editor(prefix, st.session_state.activities)
     if step == 3:
         return setup.routine_form(prefix, st.session_state.study_style)
-    return setup.preferences_form(prefix, st.session_state.study_style)
+    return setup.preferences_form(prefix, st.session_state.study_style, st.session_state.courses)
 
 
 def commit_setup_section(step, values, prefix):
@@ -1454,7 +1460,7 @@ st.markdown(
 
 now = student_now()
 part_of_day = "morning" if now.hour < 12 else "afternoon" if now.hour < 17 else "evening"
-first_name = (st.session_state.profile.get("name") or "").split(" ")[0]
+first_name = html.escape((st.session_state.profile.get("name") or "").split(" ")[0])
 
 st.markdown(
     f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} 👋</div>'
