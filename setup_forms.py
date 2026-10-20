@@ -19,6 +19,15 @@ DAY_FULL = {
 
 GRADES = ["7th", "8th", "9th", "10th", "11th", "12th"]
 
+OLD_GRADE_NAMES = {
+    "Freshman": "9th",
+    "Sophomore": "10th",
+    "Junior": "11th",
+    "Senior": "12th"
+}
+
+BLOCK_DAYS = ["A day", "B day"]
+
 TIME_ZONES = {
     "Eastern (New York)": "America/New_York",
     "Central (Chicago)": "America/Chicago",
@@ -207,10 +216,7 @@ def new_course(name=""):
         "id": new_id(),
         "name": name,
         "teacher": "",
-        "start": None,
-        "end": None,
-        "room": "",
-        "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+        "blocks": []
     }
 
 
@@ -235,7 +241,9 @@ def normalize_courses(courses):
             course["id"] = course.get("id") or new_id()
         else:
             continue
-        course["days"] = [day for day in course.get("days") or [] if day in DAY_SHORT]
+        for old_field in ("start", "end", "days", "room"):
+            course.pop(old_field, None)
+        course["blocks"] = [block for block in course.get("blocks") or [] if block in ("A", "B")]
         cleaned.append(course)
     return cleaned
 
@@ -262,7 +270,9 @@ def normalize_activities(activities):
 
 
 def complete_profile(profile):
-    return {**DEFAULT_PROFILE, **(profile or {})}
+    profile = {**DEFAULT_PROFILE, **(profile or {})}
+    profile["grade"] = OLD_GRADE_NAMES.get(profile["grade"], profile["grade"])
+    return profile
 
 
 def complete_study_style(study_style):
@@ -398,6 +408,9 @@ def courses_editor(prefix, courses):
             args=(prefix,)
         )
 
+    if draft:
+        st.caption("For each course, pick A day, B day, or both if it meets every day.")
+
     updated = []
 
     for course in draft:
@@ -434,47 +447,19 @@ def courses_editor(prefix, courses):
                     args=(prefix, "courses", course_id)
                 )
 
-            start_column, end_column, room_column = st.columns(3)
-
-            with start_column:
-                start = st.time_input(
-                    "Class starts",
-                    value=to_time(course.get("start")),
-                    step=300,
-                    key=f"{base}_start"
-                )
-
-            with end_column:
-                end = st.time_input(
-                    "Class ends",
-                    value=to_time(course.get("end")),
-                    step=300,
-                    key=f"{base}_end"
-                )
-
-            with room_column:
-                room = st.text_input(
-                    "Room (optional)",
-                    value=course.get("room", ""),
-                    key=f"{base}_room"
-                )
-
-            days = st.pills(
+            blocks = st.pills(
                 "Meets on",
-                DAY_SHORT,
+                BLOCK_DAYS,
                 selection_mode="multi",
-                default=course.get("days", []),
-                key=f"{base}_days"
+                default=[f"{block} day" for block in course.get("blocks", [])],
+                key=f"{base}_blocks"
             )
 
         updated.append({
             "id": course_id,
             "name": name.strip(),
             "teacher": teacher.strip(),
-            "start": from_time(start),
-            "end": from_time(end),
-            "room": room.strip(),
-            "days": [day for day in DAY_SHORT if day in (days or [])]
+            "blocks": [label[0] for label in BLOCK_DAYS if label in (blocks or [])]
         })
 
     st.button(
@@ -737,12 +722,14 @@ def describe_for_ai(profile, courses, activities, study_style):
     for course in normalize_courses(courses):
         if not course["name"]:
             continue
+        blocks = course["blocks"]
         when = ""
-        if course["start"] and course["end"]:
-            when = f" ({pretty_time(course['start'])}-{pretty_time(course['end'])}"
-            when += f" on {', '.join(course['days'])})" if course["days"] else ")"
+        if blocks == ["A", "B"]:
+            when = " (meets every day)"
+        elif blocks:
+            when = f" (meets on {blocks[0]} days)"
         course_lines.append(f"- {course['name']}{when}")
-    lines.append("Courses:\n" + ("\n".join(course_lines) if course_lines else "- none listed"))
+    lines.append("Courses (the school uses an A/B day block schedule):\n" + ("\n".join(course_lines) if course_lines else "- none listed"))
 
     activity_lines = []
     for activity in normalize_activities(activities):
