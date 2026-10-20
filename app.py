@@ -487,6 +487,11 @@ div[data-baseweb="select"] {
     background-color: transparent !important;
 }
 
+[data-testid="stSelectbox"] input::placeholder {
+    color: #94A3B8 !important;
+    opacity: 1 !important;
+}
+
 [data-testid="stNumberInputContainer"] button {
     background-color: #334155 !important;
     color: #F8FAFC !important;
@@ -1257,7 +1262,7 @@ def render_setup_section(step, prefix):
     if step == 0:
         return setup.profile_form(prefix, st.session_state.profile, suggested_name())
     if step == 1:
-        return setup.courses_editor(prefix, st.session_state.courses)
+        return setup.courses_editor(prefix, st.session_state.courses, st.session_state.profile.get("grade"))
     if step == 2:
         return setup.activities_editor(prefix, st.session_state.activities)
     if step == 3:

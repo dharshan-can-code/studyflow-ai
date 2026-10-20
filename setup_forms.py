@@ -4,6 +4,8 @@ from datetime import time
 
 import streamlit as st
 
+import fcps_courses
+
 
 DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -38,32 +40,6 @@ TIME_ZONES = {
     "Hawaii (Honolulu)": "Pacific/Honolulu"
 }
 
-FCPS_COURSES = [
-    "Algebra 1",
-    "Geometry",
-    "Algebra 2",
-    "Pre-Calculus",
-    "Calculus AB",
-    "Calculus BC",
-    "Biology 1",
-    "Chemistry 1",
-    "Physics 1",
-    "Environmental Science",
-    "Earth Science",
-    "World History 1",
-    "World History 2",
-    "US/VA History",
-    "US/VA Government",
-    "English 9",
-    "English 10",
-    "English 11",
-    "English 12",
-    "Spanish 1",
-    "Spanish 2",
-    "French 1",
-    "Health & PE 9",
-    "Computer Science"
-]
 FCPS_SCHOOLS = [
     "Annandale High School",
     "Centreville High School",
@@ -370,7 +346,7 @@ def _courses_draft(prefix, courses):
 
 def _quick_add_course(prefix):
     pick_key = f"{prefix}_courses_quick"
-    name = st.session_state.get(pick_key)
+    name = (st.session_state.get(pick_key) or "").strip()
     draft = st.session_state[f"{prefix}_courses_draft"]
 
     if name and name.lower() not in {course["name"].lower() for course in draft}:
@@ -392,21 +368,27 @@ def _add_blank(prefix, kind):
     st.session_state[draft_key].append(blank)
 
 
-def courses_editor(prefix, courses):
+def courses_editor(prefix, courses, grade=None):
     draft_key = _courses_draft(prefix, courses)
     draft = st.session_state[draft_key]
 
+    catalog = fcps_courses.for_grade(grade)
+    level = fcps_courses.level_for_grade(grade)
     taken = {course["name"].lower() for course in draft}
-    remaining = [name for name in FCPS_COURSES if name.lower() not in taken]
+    remaining = [name for name in catalog if name.lower() not in taken]
 
-    if remaining:
-        st.pills(
-            "FCPS quick-add",
-            remaining,
-            key=f"{prefix}_courses_quick",
-            on_change=_quick_add_course,
-            args=(prefix,)
-        )
+    st.selectbox(
+        "Add a course",
+        remaining,
+        index=None,
+        placeholder=f"Search {len(catalog)} FCPS {level + ' ' if level else ''}courses",
+        format_func=lambda name: f"{name}  ·  {catalog[name]}",
+        key=f"{prefix}_courses_quick",
+        on_change=_quick_add_course,
+        args=(prefix,)
+    )
+
+    st.caption("Not on the list? Use ➕ Add a course below and type it in.")
 
     if draft:
         st.caption("For each course, pick A day, B day, or both if it meets every day.")
