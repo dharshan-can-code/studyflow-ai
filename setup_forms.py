@@ -269,6 +269,19 @@ def _index(options, value, default=0):
     return options.index(value) if value in options else default
 
 
+def _number(value, default, low, high):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(low, min(high, number))
+
+
+def _current_name(prefix, course):
+    typed = st.session_state.get(f"{prefix}_course_{course['id']}_name")
+    return (typed if typed is not None else course["name"]).strip().lower()
+
+
 def _timezone_label(zone):
     for label, value in TIME_ZONES.items():
         if value == zone:
@@ -346,10 +359,10 @@ def _courses_draft(prefix, courses):
 
 def _quick_add_course(prefix):
     pick_key = f"{prefix}_courses_quick"
-    name = (st.session_state.get(pick_key) or "").strip()
+    name = st.session_state.get(pick_key)
     draft = st.session_state[f"{prefix}_courses_draft"]
 
-    if name and name.lower() not in {course["name"].lower() for course in draft}:
+    if name and name.lower() not in {_current_name(prefix, course) for course in draft}:
         draft.append(new_course(name))
 
     st.session_state[pick_key] = None
@@ -374,7 +387,7 @@ def courses_editor(prefix, courses, grade=None):
 
     catalog = fcps_courses.for_grade(grade)
     level = fcps_courses.level_for_grade(grade)
-    taken = {course["name"].lower() for course in draft}
+    taken = {_current_name(prefix, course) for course in draft}
     remaining = [name for name in catalog if name.lower() not in taken]
 
     st.selectbox(
@@ -526,6 +539,11 @@ def activities_editor(prefix, activities):
                 key=f"{base}_days"
             )
 
+            if name.strip() and start and end and end <= start:
+                st.caption("⚠️ The end time is before the start time.")
+            elif name.strip() and not days:
+                st.caption("⚠️ Pick at least one day so your plan can work around it.")
+
         updated.append({
             "id": activity_id,
             "name": name.strip(),
@@ -573,6 +591,9 @@ def routine_form(prefix, study_style):
             key=f"{prefix}_routine_homework"
         )
 
+    if homework and bed and wake and wake < bed <= homework:
+        st.caption("⚠️ Homework starts after bedtime, so there's no time left to study on school days.")
+
     weekends = st.toggle("Use weekends for study", value=style["weekends"], key=f"{prefix}_routine_weekends")
     lighter = st.toggle("Lighter Fridays", value=style["lighter_fridays"], key=f"{prefix}_routine_fridays")
     catchup = st.toggle("Sunday catch-up day", value=style["sunday_catchup"], key=f"{prefix}_routine_sunday")
@@ -592,7 +613,22 @@ def routine_form(prefix, study_style):
 # STUDY PREFERENCES
 # ============================================================
 
-def preferences_form(prefix, study_style):
+def _subject_picker(label, value, options, placeholder, key):
+    choices = list(options)
+    if value and value not in choices:
+        choices.append(value)
+    picked = st.selectbox(
+        label,
+        choices,
+        index=choices.index(value) if value in choices else None,
+        placeholder=placeholder,
+        accept_new_options=True,
+        key=key
+    )
+    return (picked or "").strip()
+
+
+def preferences_form(prefix, study_style, courses=None):
     style = complete_study_style(study_style)
 
     session_column, max_column = st.columns(2)
@@ -601,9 +637,9 @@ def preferences_form(prefix, study_style):
         session_length = st.number_input(
             "Session length (min)",
             min_value=10,
-            max_value=180,
+            max_value=90,
             step=5,
-            value=int(style["session_length"]),
+            value=_number(style["session_length"], 45, 10, 90),
             key=f"{prefix}_prefs_session"
         )
 
@@ -613,7 +649,7 @@ def preferences_form(prefix, study_style):
             min_value=30,
             max_value=600,
             step=15,
-            value=int(style["max_per_day"]),
+            value=_number(style["max_per_day"], 180, 30, 600),
             key=f"{prefix}_prefs_max"
         )
 
@@ -625,7 +661,7 @@ def preferences_form(prefix, study_style):
             min_value=0,
             max_value=60,
             step=5,
-            value=int(style["break_length"]),
+            value=_number(style["break_length"], 10, 0, 60),
             key=f"{prefix}_prefs_break"
         )
 
@@ -635,7 +671,7 @@ def preferences_form(prefix, study_style):
             min_value=10,
             max_value=60,
             step=5,
-            value=int(style["pomodoro"]),
+            value=_number(style["pomodoro"], 25, 10, 60),
             key=f"{prefix}_prefs_pomodoro"
         )
 
@@ -657,19 +693,26 @@ def preferences_form(prefix, study_style):
             key=f"{prefix}_prefs_peak"
         )
 
-    hardest = st.text_input(
-        "Hardest subject",
-        value=style["hardest"],
-        placeholder="e.g. Calculus",
-        key=f"{prefix}_prefs_hardest"
-    )
+    names = course_names(courses)
+    hardest_column, favorite_column = st.columns(2)
 
-    favorite = st.text_input(
-        "Favorite subject",
-        value=style["favorite"],
-        placeholder="e.g. English",
-        key=f"{prefix}_prefs_favorite"
-    )
+    with hardest_column:
+        hardest = _subject_picker(
+            "Hardest subject",
+            style["hardest"],
+            names,
+            "Pick a course or type a subject",
+            f"{prefix}_prefs_hardest"
+        )
+
+    with favorite_column:
+        favorite = _subject_picker(
+            "Favorite subject",
+            style["favorite"],
+            names,
+            "Pick a course or type a subject",
+            f"{prefix}_prefs_favorite"
+        )
 
     return {
         "session_length": int(session_length),
@@ -678,8 +721,8 @@ def preferences_form(prefix, study_style):
         "pomodoro": int(pomodoro),
         "style": study_type,
         "peak": peak,
-        "hardest": hardest.strip(),
-        "favorite": favorite.strip()
+        "hardest": hardest,
+        "favorite": favorite
     }
 
 
