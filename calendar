@@ -1,0 +1,683 @@
+"""
+calendar_view.py - the calendar tab for StudyFlow AI.
+
+The calendar is a live view of data the app already saves:
+  - st.session_state.assignments -> all-day items on their due dates
+  - st.session_state.study_plan  -> timed study sessions
+
+Nothing new has to be stored. Dragging, adding, and deleting in the calendar edit
+that same data, and the AI edits it through <add_session> / <move_session> tags
+(the same tag trick the chatbot already uses for <add_assignment>).
+
+Requires:  pip install streamlit-calendar
+"""
+
+import hashlib
+import json
+import re
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import streamlit as st
+from streamlit_calendar import calendar as st_calendar
+
+
+# ============================================================
+# SETTINGS
+# ============================================================
+
+PRIORITY_COLORS = {
+    "High": ("#EF4444", "#FFFFFF"),
+    "Medium": ("#F59E0B", "#0F172A"),
+    "Low": ("#10B981", "#0F172A"),
+}
+
+SESSION_COLOR = "#6366F1"
+
+# timeZone "UTC" makes the calendar show the exact wall-clock times we give it,
+# so "16:00" in your study plan is 16:00 on screen, whatever the browser's zone.
+CALENDAR_OPTIONS = {
+    "initialView": "dayGridMonth",
+    "headerToolbar": {
+        "left": "today prev,next",
+        "center": "title",
+        "right": "dayGridMonth,timeGridWeek,listWeek",
+    },
+    "timeZone": "UTC",
+    "editable": True,
+    "selectable": True,
+    "dayMaxEvents": True,
+    "slotMinTime": "06:00:00",
+    "slotMaxTime": "23:00:00",
+    "scrollTime": "15:00:00",
+    "height": 680,
+}
+
+CALENDAR_CSS = """
+.fc {
+    --fc-page-bg-color: #0F172A;
+    --fc-neutral-bg-color: #1E293B;
+    --fc-neutral-text-color: #94A3B8;
+    --fc-border-color: #1E293B;
+    --fc-today-bg-color: rgba(139, 92, 246, .15);
+    --fc-highlight-color: rgba(139, 92, 246, .25);
+    --fc-button-bg-color: #6366F1;
+    --fc-button-border-color: #6366F1;
+    --fc-button-hover-bg-color: #8B5CF6;
+    --fc-button-hover-border-color: #8B5CF6;
+    --fc-button-active-bg-color: #8B5CF6;
+    --fc-button-active-border-color: #8B5CF6;
+    --fc-list-event-hover-bg-color: #1E293B;
+    color: #F8FAFC;
+    font-family: 'Inter', sans-serif;
+}
+.fc .fc-toolbar-title { color: #F8FAFC; font-size: 1.3rem; }
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number,
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-timegrid-axis-cushion,
+.fc .fc-list-day-text,
+.fc .fc-list-day-side-text {
+    color: #CBD5E1;
+    text-decoration: none;
+}
+.fc .fc-event { cursor: pointer; }
+"""
+
+# Everything the calendar remembers between reruns about clicks and selections.
+INTERACTION_KEYS = (
+    "cal_last_change",
+    "cal_last_select",
+    "cal_last_click",
+    "cal_pending",
+    "cal_selected",
+)
+
+
+# ============================================================
+# SMALL HELPERS
+# ============================================================
+
+TIME_RE = re.compile(r"^\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?\s*$")
+
+
+def clean_date(value):
+    """Return 'YYYY-MM-DD' or None. Accepts full ISO timestamps too."""
+    try:
+        return datetime.strptime(str(value).strip()[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def clean_time(value):
+    """Return 'HH:MM' (24-hour) or None. Accepts '4:00 PM', '16:00', '16:00:00'."""
+    match = TIME_RE.match(str(value))
+    if not match:
+        return None
+
+    hour, minute, meridiem = int(match[1]), int(match[2]), match[3]
+
+    if meridiem:
+        meridiem = meridiem.lower()
+        if meridiem == "pm" and hour < 12:
+            hour += 12
+        elif meridiem == "am" and hour == 12:
+            hour = 0
+
+    if hour > 23 or minute > 59:
+        return None
+
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _minutes_between(start, end):
+    fmt = "%H:%M"
+    return int((datetime.strptime(end, fmt) - datetime.strptime(start, fmt)).total_seconds() // 60)
+
+
+def _plus_minutes(time_str, minutes):
+    moment = datetime.strptime(time_str, "%H:%M") + timedelta(minutes=minutes)
+    if moment.day != 1:  # strptime starts on day 1, so this crossed midnight
+        return "23:59"
+    return moment.strftime("%H:%M")
+
+
+def _whole_number(value, default):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _clean_text(value, default):
+    value = "" if value is None else str(value).strip()
+    return value or default
+
+
+def _digest(value):
+    return hashlib.md5(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _today(timezone):
+    try:
+        return datetime.now(ZoneInfo(timezone)).date()
+    except Exception:
+        return datetime.now().date()
+
+
+def _parse_id(event_id):
+    """'a3' -> ('a', 3) for assignments, 's2' -> ('s', 2) for study sessions."""
+    match = re.fullmatch(r"([as])(\d+)", str(event_id or ""))
+    return (match[1], int(match[2])) if match else (None, None)
+
+
+# ============================================================
+# STUDY SESSION DATA
+# ============================================================
+
+def _read_sessions():
+    """The list of study sessions, without creating anything."""
+    plan = st.session_state.get("study_plan")
+    if isinstance(plan, dict) and isinstance(plan.get("study_sessions"), list):
+        return plan["study_sessions"]
+    return []
+
+
+def _sessions():
+    """The list of study sessions, creating an empty plan if there isn't one yet."""
+    plan = st.session_state.get("study_plan")
+    if not isinstance(plan, dict):
+        plan = {}
+        st.session_state.study_plan = plan
+    if not isinstance(plan.get("study_sessions"), list):
+        plan["study_sessions"] = []
+    return plan["study_sessions"]
+
+
+def _sort_key(session):
+    if not isinstance(session, dict):
+        return ("", "")
+    return (str(session.get("date", "")), str(session.get("start_time", "")))
+
+
+def _sort_sessions():
+    _sessions().sort(key=_sort_key)
+
+
+def _session_minutes(session):
+    start = clean_time(session.get("start_time"))
+    end = clean_time(session.get("end_time"))
+    if start and end:
+        minutes = _minutes_between(start, end)
+        if minutes > 0:
+            return minutes
+    return _whole_number(session.get("minutes"), 60) or 60
+
+
+def normalize_session(data):
+    """Turn loose data (from the AI or the UI) into a complete session dict, or None."""
+    day = clean_date(data.get("date"))
+    start = clean_time(data.get("start_time"))
+    end = clean_time(data.get("end_time"))
+
+    if not (day and start and end):
+        return None
+
+    minutes = _minutes_between(start, end)
+    if minutes <= 0:
+        return None
+
+    return {
+        "date": day,
+        "start_time": start,
+        "end_time": end,
+        "course": _clean_text(data.get("course"), "General"),
+        "assignment": _clean_text(data.get("assignment"), ""),
+        "task": _clean_text(data.get("task"), "Study session"),
+        "minutes": minutes,
+    }
+
+
+# ============================================================
+# BUILD CALENDAR EVENTS
+# ============================================================
+
+def build_events():
+    events = []
+
+    for i, assignment in enumerate(st.session_state.get("assignments", [])):
+        if not isinstance(assignment, dict):
+            continue
+
+        day = clean_date(assignment.get("due_date"))
+        if not day:
+            continue  # "Not set" and other non-dates don't go on the calendar
+
+        background, text = PRIORITY_COLORS.get(assignment.get("priority"), PRIORITY_COLORS["Medium"])
+        events.append({
+            "id": f"a{i}",
+            "title": f"Due: {_clean_text(assignment.get('name'), 'Assignment')}",
+            "start": day,
+            "allDay": True,
+            "durationEditable": False,
+            "backgroundColor": background,
+            "borderColor": background,
+            "textColor": text,
+        })
+
+    for i, session in enumerate(_read_sessions()):
+        if not isinstance(session, dict):
+            continue
+
+        day = clean_date(session.get("date"))
+        start = clean_time(session.get("start_time"))
+        end = clean_time(session.get("end_time"))
+        if not (day and start and end) or _minutes_between(start, end) <= 0:
+            continue
+
+        title = " · ".join(
+            part for part in (str(session.get("course") or ""), str(session.get("task") or "")) if part
+        )
+        events.append({
+            "id": f"s{i}",
+            "title": title or "Study session",
+            "start": f"{day}T{start}",
+            "end": f"{day}T{end}",
+            "backgroundColor": SESSION_COLOR,
+            "borderColor": SESSION_COLOR,
+            "textColor": "#FFFFFF",
+        })
+
+    return events
+
+
+def plan_signature():
+    """Changes whenever assignments or study sessions change. Used to detect AI edits."""
+    return _digest([st.session_state.get("assignments", []), _read_sessions()])
+
+
+# ============================================================
+# KEEPING THE CALENDAR IN SYNC WITH THE DATA
+# ============================================================
+# The calendar component keeps its own copy of the events, so when the data
+# changes from outside it (AI edit, plan generated, form submitted) we give it a
+# new key, which makes it redraw. Changes that came FROM the calendar (dragging)
+# are acknowledged, so the calendar isn't redrawn under the user's hand.
+
+def _bump_version():
+    st.session_state.cal_version = st.session_state.get("cal_version", 0) + 1
+    st.session_state.cal_mount_date = st.session_state.get("cal_focus")
+    for key in INTERACTION_KEYS:
+        st.session_state.pop(key, None)
+
+
+def _force_redraw():
+    _bump_version()
+    st.rerun()
+
+
+def _sync_with_data(events):
+    signature = _digest(events)
+    if st.session_state.get("cal_sig") != signature:
+        st.session_state.cal_sig = signature
+        _bump_version()
+
+
+# ============================================================
+# HANDLING WHAT THE USER DOES IN THE CALENDAR
+# ============================================================
+
+def _handle_change(change, save):
+    """An item was dragged or resized."""
+    if not change or change == st.session_state.get("cal_last_change"):
+        return
+    st.session_state.cal_last_change = change
+
+    event = change.get("event") or {}
+    kind, index = _parse_id(event.get("id"))
+    start = str(event.get("start") or "")
+    day = clean_date(start)
+
+    if kind is None or day is None:
+        return
+
+    st.session_state.cal_focus = day
+    redraw = False
+
+    if kind == "a":
+        assignments = st.session_state.assignments
+        if index >= len(assignments):
+            return
+        assignments[index]["due_date"] = day
+        # Dropping an all-day item into the time grid turns it into a timed one.
+        redraw = not event.get("allDay", True)
+
+    else:
+        sessions = _read_sessions()
+        if index >= len(sessions) or not isinstance(sessions[index], dict):
+            return
+        session = sessions[index]
+
+        start_time = clean_time(start[11:16]) if "T" in start else None
+        if event.get("allDay") or start_time is None:
+            _force_redraw()  # dropped somewhere that makes no sense: snap back
+
+        end = str(event.get("end") or "")
+        end_time = clean_time(end[11:16]) if "T" in end else None
+        if end_time and end[:10] != day:
+            end_time = "23:59"
+        if not end_time or _minutes_between(start_time, end_time) <= 0:
+            end_time = _plus_minutes(start_time, _session_minutes(session))
+
+        session.update({
+            "date": day,
+            "start_time": start_time,
+            "end_time": end_time,
+            "minutes": _minutes_between(start_time, end_time),
+        })
+
+    save()
+
+    if redraw:
+        _force_redraw()
+
+    # The calendar already shows this change; tell the sync it's expected.
+    st.session_state.cal_sig = _digest(build_events())
+
+
+def _handle_select(slot):
+    """An empty date or time slot was clicked or dragged over."""
+    if not slot or slot == st.session_state.get("cal_last_select"):
+        return
+    st.session_state.cal_last_select = slot
+    st.session_state.cal_pending = slot
+    st.session_state.pop("cal_selected", None)
+
+    day = clean_date(slot.get("start"))
+    if day:
+        st.session_state.cal_focus = day
+
+
+def _handle_click(click):
+    """An existing item was clicked."""
+    if not click or click == st.session_state.get("cal_last_click"):
+        return
+    st.session_state.cal_last_click = click
+
+    event = click.get("event") or {}
+    st.session_state.cal_selected = event.get("id")
+    st.session_state.pop("cal_pending", None)
+
+    day = clean_date(event.get("start"))
+    if day:
+        st.session_state.cal_focus = day
+
+
+# ============================================================
+# FORMS AND DETAIL PANELS UNDER THE CALENDAR
+# ============================================================
+
+def _render_add_form(save):
+    slot = st.session_state.get("cal_pending")
+    if not slot:
+        return
+
+    start = str(slot.get("start") or "")
+    end = str(slot.get("end") or "")
+
+    day = clean_date(start) or _today("America/New_York").isoformat()
+    start_time = clean_time(start[11:16]) if "T" in start else None
+    start_time = start_time or "16:00"
+
+    end_time = clean_time(end[11:16]) if "T" in end and end[:10] == start[:10] else None
+    if not end_time or _minutes_between(start_time, end_time) <= 0:
+        end_time = _plus_minutes(start_time, 60)
+
+    tag = re.sub(r"\W", "", start + end)
+    courses = st.session_state.get("courses") or ["General"]
+    assignment_names = [
+        a["name"] for a in st.session_state.get("assignments", []) if isinstance(a, dict) and a.get("name")
+    ]
+
+    with st.form(f"add_session_{tag}"):
+        st.subheader("➕ Add a study session")
+        course = st.selectbox("Course", courses, key=f"cal_course_{tag}")
+        assignment = st.selectbox("Assignment", ["(none)"] + assignment_names, key=f"cal_assignment_{tag}")
+        task = st.text_input(
+            "What will you work on?",
+            placeholder="Review chapter 5 practice problems",
+            key=f"cal_task_{tag}",
+        )
+
+        date_column, start_column, end_column = st.columns(3)
+        with date_column:
+            session_date = st.date_input(
+                "Date",
+                value=datetime.strptime(day, "%Y-%m-%d").date(),
+                key=f"cal_date_{tag}",
+            )
+        with start_column:
+            begins = st.time_input(
+                "Start",
+                value=datetime.strptime(start_time, "%H:%M").time(),
+                step=900,
+                key=f"cal_start_{tag}",
+            )
+        with end_column:
+            ends = st.time_input(
+                "End",
+                value=datetime.strptime(end_time, "%H:%M").time(),
+                step=900,
+                key=f"cal_end_{tag}",
+            )
+
+        add_column, cancel_column = st.columns(2)
+        with add_column:
+            submitted = st.form_submit_button("Add to plan", type="primary", use_container_width=True)
+        with cancel_column:
+            cancelled = st.form_submit_button("Cancel", use_container_width=True)
+
+    if cancelled:
+        _force_redraw()
+
+    if submitted:
+        start_str = begins.strftime("%H:%M")
+        end_str = ends.strftime("%H:%M")
+
+        if _minutes_between(start_str, end_str) <= 0:
+            st.error("The end time must be after the start time.")
+            return
+
+        _sessions().append({
+            "date": session_date.isoformat(),
+            "start_time": start_str,
+            "end_time": end_str,
+            "course": course,
+            "assignment": "" if assignment == "(none)" else assignment,
+            "task": task.strip() or "Study session",
+            "minutes": _minutes_between(start_str, end_str),
+        })
+        _sort_sessions()
+        st.session_state.pop("cal_pending", None)
+        st.session_state.cal_focus = session_date.isoformat()
+        save()
+        st.rerun()
+
+
+def _render_selected(save):
+    kind, index = _parse_id(st.session_state.get("cal_selected"))
+
+    if kind == "a":
+        assignments = st.session_state.assignments
+        if index >= len(assignments):
+            return
+        assignment = assignments[index]
+
+        with st.container(border=True):
+            st.subheader(assignment.get("name", "Assignment"))
+            if assignment.get("description"):
+                st.write(assignment["description"])
+            st.write(
+                f"📚 **{assignment.get('course', 'General')}**  ·  "
+                f"📅 Due {assignment.get('due_date', 'Not set')}  ·  "
+                f"⏱️ {assignment.get('estimated_minutes', '?')} min  ·  "
+                f"Priority: {assignment.get('priority', 'Medium')}"
+            )
+            if st.button("🗑️ Delete assignment", key="cal_delete_assignment"):
+                assignments.pop(index)
+                st.session_state.pop("cal_selected", None)
+                save()
+                st.rerun()
+
+    elif kind == "s":
+        sessions = _read_sessions()
+        if index >= len(sessions) or not isinstance(sessions[index], dict):
+            return
+        session = sessions[index]
+
+        with st.container(border=True):
+            st.subheader(f"{session.get('course', '')}: {session.get('task', '')}")
+            st.write(
+                f"📅 {session.get('date')}  ·  "
+                f"⏰ {session.get('start_time')} - {session.get('end_time')}  ·  "
+                f"{session.get('minutes', '?')} minutes"
+            )
+            if session.get("assignment"):
+                st.write(f"📝 {session['assignment']}")
+            if st.button("🗑️ Delete session", key="cal_delete_session"):
+                sessions.pop(index)
+                st.session_state.pop("cal_selected", None)
+                save()
+                st.rerun()
+
+
+# ============================================================
+# THE TAB
+# ============================================================
+
+def render_calendar_tab(save, timezone="America/New_York"):
+    """Draw the calendar tab. `save` is the app's own save() function."""
+    st.header("🗓️ Calendar")
+    st.caption(
+        "Assignments show on their due dates (colored by priority) and study sessions "
+        "at their scheduled times. Drag items to reschedule, click an empty date or time "
+        "to add a session, or click an item for details."
+    )
+
+    events = build_events()
+    _sync_with_data(events)
+
+    options = dict(CALENDAR_OPTIONS)
+    options["initialDate"] = st.session_state.get("cal_mount_date") or _today(timezone).isoformat()
+
+    result = st_calendar(
+        events=events,
+        options=options,
+        custom_css=CALENDAR_CSS,
+        callbacks=["eventClick", "eventChange", "select"],
+        key=f"studyflow_calendar_{st.session_state.get('cal_version', 0)}",
+    ) or {}
+
+    _handle_change(result.get("eventChange"), save)
+    _handle_select(result.get("select"))
+    _handle_click(result.get("eventClick"))
+
+    _render_add_form(save)
+    _render_selected(save)
+
+
+# ============================================================
+# AI SIDE: TAGS THE CHATBOT CAN USE
+# ============================================================
+
+ADD_TAG = re.compile(r"<add_session>(.*?)</add_session>", re.S)
+MOVE_TAG = re.compile(r"<move_session>(.*?)</move_session>", re.S)
+UNFINISHED_TAG = re.compile(r"<(?:add|move)_session>.*$", re.S)
+
+
+def sessions_context():
+    lines = []
+    for i, session in enumerate(_read_sessions()):
+        if isinstance(session, dict):
+            lines.append(
+                f"[{i}] {session.get('date')} {session.get('start_time')}-{session.get('end_time')}"
+                f" | {session.get('course', '')} | {session.get('task', '')}"
+            )
+
+    if not lines:
+        return "The student has no study sessions scheduled yet."
+
+    return "The student's study sessions (index in brackets):\n" + "\n".join(lines[:60])
+
+
+def chat_instructions():
+    """Text to append to the chatbot's context so it can schedule and move sessions."""
+    return (
+        "Study sessions and the calendar:\n"
+        + sessions_context()
+        + "\n\n"
+        "If, and only if, the student asks you to schedule a study session or move an existing one, "
+        "reply normally, say what you did, and put one line at the very end of your reply for each change.\n"
+        "To add a session, use exactly this format:\n"
+        '<add_session>{"date": "YYYY-MM-DD", "start_time": "16:00", "end_time": "17:00", '
+        '"course": "", "assignment": "", "task": ""}</add_session>\n'
+        "To move an existing session, use its index from the list above and always give all three fields:\n"
+        '<move_session>{"index": 0, "date": "YYYY-MM-DD", "start_time": "16:00", "end_time": "17:00"}</move_session>\n'
+        "- Use 24-hour HH:MM times. Convert relative dates such as \"tomorrow\" using the calendar above.\n"
+        "- Never use these tags for anything else, and never mention them to the student.\n"
+    )
+
+
+def _load_tag_json(raw):
+    raw = raw.strip()
+    for fence in ("```json", "```"):
+        raw = raw.removeprefix(fence)
+    raw = raw.removesuffix("```").strip()
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+    return data if isinstance(data, dict) else None
+
+
+def apply_session_tags(reply):
+    """Apply any <add_session>/<move_session> tags in an AI reply.
+
+    Returns (reply_without_tags, number_of_changes_made).
+    """
+    changes = 0
+
+    for raw in ADD_TAG.findall(reply):
+        data = _load_tag_json(raw)
+        session = normalize_session(data) if data else None
+        if session:
+            _sessions().append(session)
+            changes += 1
+
+    for raw in MOVE_TAG.findall(reply):
+        data = _load_tag_json(raw)
+        if not data:
+            continue
+
+        sessions = _read_sessions()
+        index = _whole_number(data.get("index"), -1)
+        if not (0 <= index < len(sessions)) or not isinstance(sessions[index], dict):
+            continue
+
+        moved = {**sessions[index]}
+        for field in ("date", "start_time", "end_time"):
+            if field in data:
+                moved[field] = data[field]
+
+        session = normalize_session(moved)
+        if session:
+            sessions[index].update(session)
+            changes += 1
+
+    if changes:
+        _sort_sessions()  # sorted once, after all moves, so indexes stay valid
+
+    clean = UNFINISHED_TAG.sub("", MOVE_TAG.sub("", ADD_TAG.sub("", reply))).strip()
+    return clean, changes
