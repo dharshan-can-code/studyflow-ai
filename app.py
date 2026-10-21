@@ -9,6 +9,8 @@ from ollama import Client
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 
+import ab_calendar
+import calendar_export
 import setup_forms as setup
 import storage
 import uploads
@@ -488,6 +490,14 @@ div[data-baseweb="select"] {
     background-color: transparent !important;
 }
 
+[data-testid="stMarkdownContainer"] a {
+    color: #A78BFA !important;
+}
+
+[data-testid="stMarkdownContainer"] a:hover {
+    color: #C4B5FD !important;
+}
+
 [data-testid="stSelectbox"] input::placeholder {
     color: #94A3B8 !important;
     opacity: 1 !important;
@@ -835,19 +845,51 @@ def student_now():
             return datetime.now()
 
 
-def date_context():
-    today = student_now().date()
+def uses_ab_calendar():
+    return st.session_state.profile.get("ab_calendar", True)
 
-    lines = [
-        f"Today is {today:%A}, {today:%Y-%m-%d}.",
-        "Calendar for the next two weeks (use it to convert "
-        "relative dates like \"next Friday\"):"
-    ]
-    for i in range(1, 15):
+
+def day_note(day):
+    if not uses_ab_calendar() or day.weekday() >= 5:
+        return ""
+    return ab_calendar.describe_day(day)
+
+
+def date_context(days=14):
+    today = student_now().date()
+    today_note = day_note(today)
+
+    lines = [f"Today is {today:%A}, {today:%Y-%m-%d}" + (f" ({today_note})." if today_note else ".")]
+
+    if uses_ab_calendar():
+        lines.append(
+            f"The student's school follows the FCPS {ab_calendar.SCHOOL_YEAR} A/B day calendar. "
+            "Each course meets only on its A or B days, and weekdays marked "
+            "\"no school\" are holidays."
+        )
+
+    lines.append(
+        "Calendar for the coming days (use it to convert relative dates like "
+        "\"next Friday\" or \"next class\"):"
+    )
+    for i in range(1, days + 1):
         day = today + timedelta(days=i)
-        lines.append(f"- {day:%A} {day:%Y-%m-%d}")
+        note = day_note(day)
+        lines.append(f"- {day:%A} {day:%Y-%m-%d}" + (f" ({note})" if note else ""))
 
     return "\n".join(lines)
+
+
+def plan_days():
+    today = student_now().date()
+    latest = today
+    for assignment in st.session_state.assignments:
+        try:
+            due = datetime.strptime(str(assignment.get("due_date")), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        latest = max(latest, due)
+    return min(max((latest - today).days, 14), 60)
 
 
 # ============================================================
@@ -1077,6 +1119,68 @@ Rules:
 # STUDY PLAN GENERATOR
 # ============================================================
 
+def plan_day_label(value):
+    if not uses_ab_calendar():
+        return ""
+    try:
+        day = datetime.strptime(str(value), "%Y-%m-%d").date()
+    except ValueError:
+        return ""
+    return ab_calendar.short_label(day)
+
+
+def show_calendar_export(sessions, zone_name):
+    with st.container(border=True):
+        st.subheader("📤 Export to your calendar")
+
+        include_due = st.toggle(
+            "Include assignment due dates",
+            value=True,
+            key="export_include_due"
+        )
+
+        session_count, due_count = calendar_export.count_events(
+            sessions,
+            st.session_state.assignments,
+            include_due
+        )
+
+        if not session_count and not due_count:
+            st.caption("There's nothing with a date to export yet.")
+            return
+
+        summary = f"{session_count} study session{'s' if session_count != 1 else ''}"
+        if include_due:
+            summary += f" and {due_count} due date{'s' if due_count != 1 else ''}"
+        st.caption(f"{summary}, each study session with a 10-minute reminder.")
+
+        st.download_button(
+            "📅 Download calendar file (.ics)",
+            data=calendar_export.build_ics(
+                sessions,
+                st.session_state.assignments,
+                zone_name,
+                include_due
+            ),
+            file_name="studyflow-study-plan.ics",
+            mime="text/calendar",
+            type="primary",
+            use_container_width=True,
+            key="export_download"
+        )
+
+        with st.expander("How to add it to Google Calendar"):
+            st.markdown(
+                "1. Open **calendar.google.com** on a computer.\n"
+                "2. Click **⚙️ Settings**, then **Import & export**.\n"
+                "3. Choose the file you downloaded and click **Import**.\n\n"
+                "Tip: make a new calendar called *StudyFlow* first and import into it, "
+                "so you can hide or delete the whole plan in one click. "
+                "If you make a new plan later, clear out the old one before importing again. "
+                "The file also works with Apple Calendar and Outlook."
+            )
+
+
 def generate_plan():
     if not st.session_state.assignments:
         return None
@@ -1087,7 +1191,7 @@ def generate_plan():
         st.session_state.study_style
     )
     prompt = f"""
-{date_context()}
+{date_context(plan_days())}
 
 About the student:
 {student}
@@ -1115,6 +1219,10 @@ Rules:
 13. Put harder work during the student's peak productivity time when possible.
 14. Spread work across multiple days and avoid overwhelming the student.
 15. Include a specific task for every study session.
+16. Treat weekdays marked "no school" like weekend days.
+17. If the calendar shows A/B days, each course only meets on its own day.
+    Put review for a course on the evening before it meets, and finish
+    homework for a course before its next class day.
 
 Return ONLY valid JSON.
 Use exactly this format:
@@ -1161,10 +1269,14 @@ def chat_context():
         st.session_state.activities,
         st.session_state.study_style
     )
+    ab_hint = (
+        "\nWhen it helps, mention whether a day is an A day or a B day and which of their classes meet."
+        if uses_ab_calendar() else ""
+    )
     return f"""
 {date_context()}
 
-About the student (use their first name naturally, and keep their schedule and preferences in mind):
+About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
 {student}
 
 The student's current assignments are:
@@ -1460,11 +1572,14 @@ st.markdown(
 
 now = student_now()
 part_of_day = "morning" if now.hour < 12 else "afternoon" if now.hour < 17 else "evening"
+today_label = ""
+if uses_ab_calendar() and ab_calendar.in_school_year(now.date()) and now.weekday() < 5:
+    today_label = f" · {ab_calendar.short_label(now.date()) or 'No school'}"
 first_name = html.escape((st.session_state.profile.get("name") or "").split(" ")[0])
 
 st.markdown(
     f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} 👋</div>'
-    f'<div class="greeting-date">{now:%A, %B} {now.day}</div>',
+    f'<div class="greeting-date">{now:%A, %B} {now.day}{today_label}</div>',
     unsafe_allow_html=True
 )
 
@@ -1699,36 +1814,48 @@ with tab2:
             "study_sessions",
             []
         )
+        zone_name = st.session_state.profile.get("timezone") or APP_TIMEZONE
+
         for session in sessions:
+            if not isinstance(session, dict):
+                continue
             with st.container(border=True):
                 col1, col2, col3 = st.columns(
                     [1.5, 2, 4]
                 )
                 with col1:
                     st.write(
-                        f"📅 **{session['date']}**"
+                        f"📅 **{session.get('date', '')}**"
                     )
+                    day_label = plan_day_label(session.get("date"))
+                    if day_label:
+                        st.caption(day_label)
                     st.write(
                         f"⏰ "
-                        f"{session['start_time']} - "
-                        f"{session['end_time']}"
+                        f"{session.get('start_time', '')} - "
+                        f"{session.get('end_time', '')}"
                     )
                 with col2:
                     st.write(
-                        f"📚 **{session['course']}**"
+                        f"📚 **{session.get('course', '')}**"
                     )
                     st.write(
-                        f"📝 {session['assignment']}"
+                        f"📝 {session.get('assignment', '')}"
                     )
 
                 with col3:
                     st.write(
                         f"**Task:** "
-                        f"{session['task']}"
+                        f"{session.get('task', '')}"
                     )
                     st.caption(
-                        f"{session['minutes']} minutes"
+                        f"{session.get('minutes', '')} minutes"
                     )
+                    google_link = calendar_export.google_calendar_link(session, zone_name)
+                    if google_link:
+                        st.markdown(f"[➕ Add to Google Calendar]({google_link})")
+
+        show_calendar_export(sessions, zone_name)
 
         with st.expander(
             "📄 View Raw Study Plan"
