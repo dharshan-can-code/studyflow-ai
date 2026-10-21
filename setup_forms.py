@@ -103,6 +103,7 @@ DEFAULT_PROFILE = {
     "grade": "9th",
     "school": "",
     "timezone": "America/New_York",
+    "ab_calendar": True,
     "onboarded": False
 }
 
@@ -335,14 +336,21 @@ def profile_form(prefix, profile, suggested_name=""):
         key=f"{prefix}_profile_timezone"
     )
 
-    st.caption("Course suggestions are based on Fairfax County Public Schools (FCPS).")
+    ab_calendar = st.toggle(
+        "My school follows the FCPS A/B day calendar",
+        value=bool(profile["ab_calendar"]),
+        key=f"{prefix}_profile_ab"
+    )
+
+    st.caption("Course suggestions and A/B days are based on Fairfax County Public Schools (FCPS).")
 
     return {
         **profile,
         "name": name.strip(),
         "grade": grade,
         "school": (school or "").strip(),
-        "timezone": TIME_ZONES[zone_label]
+        "timezone": TIME_ZONES[zone_label],
+        "ab_calendar": ab_calendar
     }
 
 
@@ -744,6 +752,7 @@ def describe_for_ai(profile, courses, activities, study_style):
         lines.append(f"Student: {profile['name']}, {profile['grade']}" + (f" at {profile['school']}" if profile["school"] else ""))
 
     course_lines = []
+    schedule_note = "the school uses an A/B day block schedule" if profile["ab_calendar"] else "class days not tracked"
     for course in normalize_courses(courses):
         if not course["name"]:
             continue
@@ -754,7 +763,7 @@ def describe_for_ai(profile, courses, activities, study_style):
         elif blocks:
             when = f" (meets on {blocks[0]} days)"
         course_lines.append(f"- {course['name']}{when}")
-    lines.append("Courses (the school uses an A/B day block schedule):\n" + ("\n".join(course_lines) if course_lines else "- none listed"))
+    lines.append(f"Courses ({schedule_note}):\n" + ("\n".join(course_lines) if course_lines else "- none listed"))
 
     activity_lines = []
     for activity in normalize_activities(activities):
