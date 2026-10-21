@@ -949,6 +949,7 @@ def normalize_assignment(assignment):
 
     return {
         "name": _text(assignment.get("name"), "Untitled assignment"),
+        "type": _text(assignment.get("type"), ""),
         "course": _text(assignment.get("course"), "General"),
         "due_date": _text(assignment.get("due_date"), "Not set"),
         "difficulty": min(5, max(1, _whole_number(assignment.get("difficulty"), 3))),
@@ -987,6 +988,7 @@ Use exactly this format:
     "assignments": [
         {{
             "name": "",
+            "type": "",
             "course": "",
             "due_date": "YYYY-MM-DD",
             "difficulty": 3,
@@ -1005,6 +1007,9 @@ Rules:
 - Difficulty must be 1-5.
 - Priority must be Low, Medium, or High.
 - Estimate realistic focused work time.
+- Use the assignment type provided by the student (must be test, project, homework, essay, quiz, script, notes, program, presentation, or other), 
+or infer it from the description only if the student doesn't provide one and you are EXTREMELY SURE you are correct. 
+Use this information to help with deciding a priority and difficulty level. If you are not sure, leave the type blank.
 - If nothing is found, return {{"assignments": []}}.
 """
     result = ask_ai(
@@ -1036,6 +1041,7 @@ Return ONLY valid JSON.
 Use exactly this format:
 {{
     "name": "",
+    "type": "",
     "course": "",
     "due_date": "YYYY-MM-DD",
     "difficulty": 1,
@@ -1054,6 +1060,9 @@ Rules:
 - Do not invent unnecessary information.
 - If the student gives a relative date such as
   "next Tuesday", convert it into the correct date.
+- Use the assignment type provided by the student (must be test, project, homework, essay, quiz, script, notes, program, or other), 
+or infer it from the description only if the student doesn't provide one and you are EXTREMELY SURE you are correct. 
+Use this information to help with deciding a priority and difficulty level. If you are not sure, leave the type blank.
 """
     return ask_ai(
         prompt,
@@ -1557,6 +1566,7 @@ with tab1:
             column_order=[
                 "add",
                 "name",
+                "type",
                 "course",
                 "due_date",
                 "difficulty",
@@ -1567,6 +1577,7 @@ with tab1:
             column_config={
                 "add": st.column_config.CheckboxColumn("Add?"),
                 "name": st.column_config.TextColumn("Assignment"),
+                "type": st.column_config.TextColumn("Type"),
                 "course": st.column_config.TextColumn("Course"),
                 "due_date": st.column_config.TextColumn("Due (YYYY-MM-DD)"),
                 "difficulty": st.column_config.NumberColumn("Difficulty", min_value=1, max_value=5, step=1),
@@ -1611,9 +1622,11 @@ with tab1:
                     [3, 2, 1]
                 )
                 with col1:
+                    st.html(f"<strong><span style=\"margin-bottom: 0rem; color: rgb(119, 119, 119); font-family: 'Inter'; font-size: 1.2rem;\">{assignment.get('type', '').upper()}</span></strong>")
                     st.subheader(
                         assignment["name"]
                     )
+                    st.html(f"<style>#{assignment.get('name').replace(' ', '-').lower()} {{ padding-top: 0rem; }}</style>")
                     st.write(
                         assignment.get(
                             "description",
@@ -1626,7 +1639,7 @@ with tab1:
                         f"📚 **{assignment['course']}**"
                     )
                     st.write(
-                        f"📅 Due: "
+                        f"📅 Due: " if not assignment.get("type") in ['test', 'quiz', 'presentation'] else "📅 "
                         f"{assignment['due_date']}"
                     )
                     st.write(
