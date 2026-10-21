@@ -1,4 +1,5 @@
 import streamlit as st
+import html
 import json
 import re
 import secrets
@@ -485,6 +486,11 @@ div[data-baseweb="select"] {
 [data-testid="stTimeInputTimeDisplay"] * {
     color: #F8FAFC !important;
     background-color: transparent !important;
+}
+
+[data-testid="stSelectbox"] input::placeholder {
+    color: #94A3B8 !important;
+    opacity: 1 !important;
 }
 
 [data-testid="stNumberInputContainer"] button {
@@ -1030,6 +1036,9 @@ def analyze_assignment(text):
     prompt = f"""
 {date_context()}
 
+The student's courses are:
+{json.dumps(setup.course_names(st.session_state.courses))}
+
 Analyze this student's academic task:
 "{text}"
 Return ONLY valid JSON.
@@ -1052,6 +1061,8 @@ Rules:
 - Estimate realistic focused work time.
 - Use YYYY-MM-DD for the due date.
 - Do not invent unnecessary information.
+- Match the course to one of the student's courses when it clearly fits,
+  using that course's exact name.
 - If the student gives a relative date such as
   "next Tuesday", convert it into the correct date.
 """
@@ -1257,12 +1268,12 @@ def render_setup_section(step, prefix):
     if step == 0:
         return setup.profile_form(prefix, st.session_state.profile, suggested_name())
     if step == 1:
-        return setup.courses_editor(prefix, st.session_state.courses)
+        return setup.courses_editor(prefix, st.session_state.courses, st.session_state.profile.get("grade"))
     if step == 2:
         return setup.activities_editor(prefix, st.session_state.activities)
     if step == 3:
         return setup.routine_form(prefix, st.session_state.study_style)
-    return setup.preferences_form(prefix, st.session_state.study_style)
+    return setup.preferences_form(prefix, st.session_state.study_style, st.session_state.courses)
 
 
 def commit_setup_section(step, values, prefix):
@@ -1448,7 +1459,7 @@ st.markdown(
 
 now = student_now()
 part_of_day = "morning" if now.hour < 12 else "afternoon" if now.hour < 17 else "evening"
-first_name = (st.session_state.profile.get("name") or "").split(" ")[0]
+first_name = html.escape((st.session_state.profile.get("name") or "").split(" ")[0])
 
 st.markdown(
     f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} 👋</div>'
