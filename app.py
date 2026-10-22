@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from ollama import Client
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
+import flashcard_display as fcard
 
 import ab_calendar
 import calendar_export
@@ -2017,6 +2018,9 @@ with tab3:
 # FLASHCARDS TAB
 # ============================================================
 
+if 'card_idx' not in st.session_state:
+    st.session_state.card_idx = []
+
 with tab4:
     st.header("📇 Flashcards")
     if not st.session_state.flashcard_sets:
@@ -2026,10 +2030,19 @@ with tab4:
     else:
         with st.expander(
             st.session_state.flashcard_sets[0].get('assignment')
+            
         ):
-            st.json(
-                st.session_state.flashcard_sets[0]
-            )
+            try:
+                side + 1
+            except:
+                side = 0
+            try:
+                card_idx = st.session_state.card_idx[0][0]
+            except:
+                card_idx = 0
+            side = fcard.draw(side, list(st.session_state.flashcard_sets[0])[card_idx + 2], list(st.session_state.flashcard_sets[0].values())[card_idx + 2])
+        if len(st.session_state.card_idx) >= 0:
+                st.session_state.card_idx.insert(0, [card_idx, side])
 
 
 # ============================================================

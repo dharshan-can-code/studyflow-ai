@@ -1,8 +1,8 @@
 import streamlit as st
-def draw_flashcard(side=0, top, bottom):
+def draw(side, top, bottom):
     if st.button(
-        top if side = 0 else bottom
+        top if side == 0 else bottom
     ):
-        return abs(~side)
+        return 1 if side == 0 else 0
     else:
         return side
