@@ -644,13 +644,14 @@ if "found_assignments" not in st.session_state:
 if "found_batch" not in st.session_state:
     st.session_state.found_batch = 0
 
+#st.session_state.flashcard_sets = []
 
 def prepare_saved_data():
     st.session_state.courses = setup.normalize_courses(st.session_state.courses)
     st.session_state.activities = setup.normalize_activities(st.session_state.activities)
     st.session_state.profile = setup.complete_profile(st.session_state.profile)
     st.session_state.study_style = setup.complete_study_style(st.session_state.study_style)
-    st.session_state.flashcard_sets = None
+    st.session_state.flashcard_sets = []
 
 
 if "data_prepared" not in st.session_state:
@@ -1748,6 +1749,32 @@ with tab1:
                             ""
                         )
                     )
+                    state = "Virginia" #change later
+                    if st.button(
+                        "📇 Create Flashcards",
+                        key=f"flashcards_create_{i}"
+                    ):
+                        st.session_state.flashcard_sets.append(
+                            ask_ai(
+                                f"""
+                                You are a professional flashcard maker and I am a student in need of flashcards.
+                                You need to create a set of vocabulary flashcards for {assignment.get('name')} using the {state} curriculum.
+                                Make sure the cards are only for the unit specified (if present) in {state} standard curriculum.
+                                Return only in valid JSON using this format:
+                                {{
+                                    'assignment': 'name'
+                                    'card 1 word': 'definition',
+                                    'card 2 word': 'definition',
+                                    ... and so on
+                                }}
+                                """,
+                                "You are a professional flashcard maker"
+                            ) 
+                        )
+                        for set in st.session_state.flashcard_sets[0:-1]:
+                            if set.get('assignment') == assignment.get('name'):
+                                st.session_state.flashcard_sets[-1].pop()
+                                
 
                 with col2:
                     st.write(
@@ -1997,7 +2024,13 @@ with tab4:
             "No flashcards yet. Add some in the 📝 Assignments tab."
         )
     else:
-        asdfghk = 1
+        with st.expander(
+            st.session_state.flashcard_sets[0].get('assignment')
+        ):
+            st.json(
+                st.session_state.flashcard_sets[0]
+            )
+
 
 # ============================================================
 # SETTINGS TAB
