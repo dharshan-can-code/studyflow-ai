@@ -4,6 +4,8 @@ from datetime import time
 
 import streamlit as st
 
+import fcps_courses
+
 
 DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -19,6 +21,15 @@ DAY_FULL = {
 
 GRADES = ["7th", "8th", "9th", "10th", "11th", "12th"]
 
+OLD_GRADE_NAMES = {
+    "Freshman": "9th",
+    "Sophomore": "10th",
+    "Junior": "11th",
+    "Senior": "12th"
+}
+
+BLOCK_DAYS = ["A day", "B day"]
+
 TIME_ZONES = {
     "Eastern (New York)": "America/New_York",
     "Central (Chicago)": "America/Chicago",
@@ -29,32 +40,6 @@ TIME_ZONES = {
     "Hawaii (Honolulu)": "Pacific/Honolulu"
 }
 
-FCPS_COURSES = [
-    "Algebra 1",
-    "Geometry",
-    "Algebra 2",
-    "Pre-Calculus",
-    "Calculus AB",
-    "Calculus BC",
-    "Biology 1",
-    "Chemistry 1",
-    "Physics 1",
-    "Environmental Science",
-    "Earth Science",
-    "World History 1",
-    "World History 2",
-    "US/VA History",
-    "US/VA Government",
-    "English 9",
-    "English 10",
-    "English 11",
-    "English 12",
-    "Spanish 1",
-    "Spanish 2",
-    "French 1",
-    "Health & PE 9",
-    "Computer Science"
-]
 FCPS_SCHOOLS = [
     "Annandale High School",
     "Centreville High School",
@@ -118,6 +103,7 @@ DEFAULT_PROFILE = {
     "grade": "9th",
     "school": "",
     "timezone": "America/New_York",
+    "ab_calendar": True,
     "onboarded": False
 }
 
@@ -207,10 +193,7 @@ def new_course(name=""):
         "id": new_id(),
         "name": name,
         "teacher": "",
-        "start": None,
-        "end": None,
-        "room": "",
-        "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+        "blocks": []
     }
 
 
@@ -235,7 +218,9 @@ def normalize_courses(courses):
             course["id"] = course.get("id") or new_id()
         else:
             continue
-        course["days"] = [day for day in course.get("days") or [] if day in DAY_SHORT]
+        for old_field in ("start", "end", "days", "room"):
+            course.pop(old_field, None)
+        course["blocks"] = [block for block in course.get("blocks") or [] if block in ("A", "B")]
         cleaned.append(course)
     return cleaned
 
@@ -262,7 +247,9 @@ def normalize_activities(activities):
 
 
 def complete_profile(profile):
-    return {**DEFAULT_PROFILE, **(profile or {})}
+    profile = {**DEFAULT_PROFILE, **(profile or {})}
+    profile["grade"] = OLD_GRADE_NAMES.get(profile["grade"], profile["grade"])
+    return profile
 
 
 def complete_study_style(study_style):
@@ -281,6 +268,19 @@ def reset_form_state():
 
 def _index(options, value, default=0):
     return options.index(value) if value in options else default
+
+
+def _number(value, default, low, high):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(low, min(high, number))
+
+
+def _current_name(prefix, course):
+    typed = st.session_state.get(f"{prefix}_course_{course['id']}_name")
+    return (typed if typed is not None else course["name"]).strip().lower()
 
 
 def _timezone_label(zone):
@@ -336,14 +336,21 @@ def profile_form(prefix, profile, suggested_name=""):
         key=f"{prefix}_profile_timezone"
     )
 
-    st.caption("Course suggestions are based on Fairfax County Public Schools (FCPS).")
+    ab_calendar = st.toggle(
+        "My school follows the FCPS A/B day calendar",
+        value=bool(profile["ab_calendar"]),
+        key=f"{prefix}_profile_ab"
+    )
+
+    st.caption("Course suggestions and A/B days are based on Fairfax County Public Schools (FCPS).")
 
     return {
         **profile,
         "name": name.strip(),
         "grade": grade,
         "school": (school or "").strip(),
-        "timezone": TIME_ZONES[zone_label]
+        "timezone": TIME_ZONES[zone_label],
+        "ab_calendar": ab_calendar
     }
 
 
@@ -363,7 +370,7 @@ def _quick_add_course(prefix):
     name = st.session_state.get(pick_key)
     draft = st.session_state[f"{prefix}_courses_draft"]
 
-    if name and name.lower() not in {course["name"].lower() for course in draft}:
+    if name and name.lower() not in {_current_name(prefix, course) for course in draft}:
         draft.append(new_course(name))
 
     st.session_state[pick_key] = None
@@ -382,21 +389,30 @@ def _add_blank(prefix, kind):
     st.session_state[draft_key].append(blank)
 
 
-def courses_editor(prefix, courses):
+def courses_editor(prefix, courses, grade=None):
     draft_key = _courses_draft(prefix, courses)
     draft = st.session_state[draft_key]
 
-    taken = {course["name"].lower() for course in draft}
-    remaining = [name for name in FCPS_COURSES if name.lower() not in taken]
+    catalog = fcps_courses.for_grade(grade)
+    level = fcps_courses.level_for_grade(grade)
+    taken = {_current_name(prefix, course) for course in draft}
+    remaining = [name for name in catalog if name.lower() not in taken]
 
-    if remaining:
-        st.pills(
-            "FCPS quick-add",
-            remaining,
-            key=f"{prefix}_courses_quick",
-            on_change=_quick_add_course,
-            args=(prefix,)
-        )
+    st.selectbox(
+        "Add a course",
+        remaining,
+        index=None,
+        placeholder=f"Search {len(catalog)} FCPS {level + ' ' if level else ''}courses",
+        format_func=lambda name: f"{name}  ·  {catalog[name]}",
+        key=f"{prefix}_courses_quick",
+        on_change=_quick_add_course,
+        args=(prefix,)
+    )
+
+    st.caption("Not on the list? Use ➕ Add a course below and type it in.")
+
+    if draft:
+        st.caption("For each course, pick A day, B day, or both if it meets every day.")
 
     updated = []
 
@@ -434,47 +450,19 @@ def courses_editor(prefix, courses):
                     args=(prefix, "courses", course_id)
                 )
 
-            start_column, end_column, room_column = st.columns(3)
-
-            with start_column:
-                start = st.time_input(
-                    "Class starts",
-                    value=to_time(course.get("start")),
-                    step=300,
-                    key=f"{base}_start"
-                )
-
-            with end_column:
-                end = st.time_input(
-                    "Class ends",
-                    value=to_time(course.get("end")),
-                    step=300,
-                    key=f"{base}_end"
-                )
-
-            with room_column:
-                room = st.text_input(
-                    "Room (optional)",
-                    value=course.get("room", ""),
-                    key=f"{base}_room"
-                )
-
-            days = st.pills(
+            blocks = st.pills(
                 "Meets on",
-                DAY_SHORT,
+                BLOCK_DAYS,
                 selection_mode="multi",
-                default=course.get("days", []),
-                key=f"{base}_days"
+                default=[f"{block} day" for block in course.get("blocks", [])],
+                key=f"{base}_blocks"
             )
 
         updated.append({
             "id": course_id,
             "name": name.strip(),
             "teacher": teacher.strip(),
-            "start": from_time(start),
-            "end": from_time(end),
-            "room": room.strip(),
-            "days": [day for day in DAY_SHORT if day in (days or [])]
+            "blocks": [label[0] for label in BLOCK_DAYS if label in (blocks or [])]
         })
 
     st.button(
@@ -559,6 +547,11 @@ def activities_editor(prefix, activities):
                 key=f"{base}_days"
             )
 
+            if name.strip() and start and end and end <= start:
+                st.caption("⚠️ The end time is before the start time.")
+            elif name.strip() and not days:
+                st.caption("⚠️ Pick at least one day so your plan can work around it.")
+
         updated.append({
             "id": activity_id,
             "name": name.strip(),
@@ -606,6 +599,9 @@ def routine_form(prefix, study_style):
             key=f"{prefix}_routine_homework"
         )
 
+    if homework and bed and wake and wake < bed <= homework:
+        st.caption("⚠️ Homework starts after bedtime, so there's no time left to study on school days.")
+
     weekends = st.toggle("Use weekends for study", value=style["weekends"], key=f"{prefix}_routine_weekends")
     lighter = st.toggle("Lighter Fridays", value=style["lighter_fridays"], key=f"{prefix}_routine_fridays")
     catchup = st.toggle("Sunday catch-up day", value=style["sunday_catchup"], key=f"{prefix}_routine_sunday")
@@ -625,7 +621,22 @@ def routine_form(prefix, study_style):
 # STUDY PREFERENCES
 # ============================================================
 
-def preferences_form(prefix, study_style):
+def _subject_picker(label, value, options, placeholder, key):
+    choices = list(options)
+    if value and value not in choices:
+        choices.append(value)
+    picked = st.selectbox(
+        label,
+        choices,
+        index=choices.index(value) if value in choices else None,
+        placeholder=placeholder,
+        accept_new_options=True,
+        key=key
+    )
+    return (picked or "").strip()
+
+
+def preferences_form(prefix, study_style, courses=None):
     style = complete_study_style(study_style)
 
     session_column, max_column = st.columns(2)
@@ -634,9 +645,9 @@ def preferences_form(prefix, study_style):
         session_length = st.number_input(
             "Session length (min)",
             min_value=10,
-            max_value=180,
+            max_value=90,
             step=5,
-            value=int(style["session_length"]),
+            value=_number(style["session_length"], 45, 10, 90),
             key=f"{prefix}_prefs_session"
         )
 
@@ -646,7 +657,7 @@ def preferences_form(prefix, study_style):
             min_value=30,
             max_value=600,
             step=15,
-            value=int(style["max_per_day"]),
+            value=_number(style["max_per_day"], 180, 30, 600),
             key=f"{prefix}_prefs_max"
         )
 
@@ -658,7 +669,7 @@ def preferences_form(prefix, study_style):
             min_value=0,
             max_value=60,
             step=5,
-            value=int(style["break_length"]),
+            value=_number(style["break_length"], 10, 0, 60),
             key=f"{prefix}_prefs_break"
         )
 
@@ -668,7 +679,7 @@ def preferences_form(prefix, study_style):
             min_value=10,
             max_value=60,
             step=5,
-            value=int(style["pomodoro"]),
+            value=_number(style["pomodoro"], 25, 10, 60),
             key=f"{prefix}_prefs_pomodoro"
         )
 
@@ -690,19 +701,26 @@ def preferences_form(prefix, study_style):
             key=f"{prefix}_prefs_peak"
         )
 
-    hardest = st.text_input(
-        "Hardest subject",
-        value=style["hardest"],
-        placeholder="e.g. Calculus",
-        key=f"{prefix}_prefs_hardest"
-    )
+    names = course_names(courses)
+    hardest_column, favorite_column = st.columns(2)
 
-    favorite = st.text_input(
-        "Favorite subject",
-        value=style["favorite"],
-        placeholder="e.g. English",
-        key=f"{prefix}_prefs_favorite"
-    )
+    with hardest_column:
+        hardest = _subject_picker(
+            "Hardest subject",
+            style["hardest"],
+            names,
+            "Pick a course or type a subject",
+            f"{prefix}_prefs_hardest"
+        )
+
+    with favorite_column:
+        favorite = _subject_picker(
+            "Favorite subject",
+            style["favorite"],
+            names,
+            "Pick a course or type a subject",
+            f"{prefix}_prefs_favorite"
+        )
 
     return {
         "session_length": int(session_length),
@@ -711,8 +729,8 @@ def preferences_form(prefix, study_style):
         "pomodoro": int(pomodoro),
         "style": study_type,
         "peak": peak,
-        "hardest": hardest.strip(),
-        "favorite": favorite.strip()
+        "hardest": hardest,
+        "favorite": favorite
     }
 
 
@@ -734,15 +752,18 @@ def describe_for_ai(profile, courses, activities, study_style):
         lines.append(f"Student: {profile['name']}, {profile['grade']}" + (f" at {profile['school']}" if profile["school"] else ""))
 
     course_lines = []
+    schedule_note = "the school uses an A/B day block schedule" if profile["ab_calendar"] else "class days not tracked"
     for course in normalize_courses(courses):
         if not course["name"]:
             continue
+        blocks = course["blocks"]
         when = ""
-        if course["start"] and course["end"]:
-            when = f" ({pretty_time(course['start'])}-{pretty_time(course['end'])}"
-            when += f" on {', '.join(course['days'])})" if course["days"] else ")"
+        if blocks == ["A", "B"]:
+            when = " (meets every day)"
+        elif blocks:
+            when = f" (meets on {blocks[0]} days)"
         course_lines.append(f"- {course['name']}{when}")
-    lines.append("Courses:\n" + ("\n".join(course_lines) if course_lines else "- none listed"))
+    lines.append(f"Courses ({schedule_note}):\n" + ("\n".join(course_lines) if course_lines else "- none listed"))
 
     activity_lines = []
     for activity in normalize_activities(activities):
