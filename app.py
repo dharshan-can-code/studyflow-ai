@@ -634,6 +634,7 @@ def prepare_saved_data():
     st.session_state.activities = setup.normalize_activities(st.session_state.activities)
     st.session_state.profile = setup.complete_profile(st.session_state.profile)
     st.session_state.study_style = setup.complete_study_style(st.session_state.study_style)
+    st.session_state.flashcard_sets = None
 
 
 if "data_prepared" not in st.session_state:
@@ -1465,11 +1466,12 @@ st.divider()
 # TABS
 # ============================================================
 
-tab1, tab2, tab3, tab4 = st.tabs(
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
         "📝 Assignments",
         "📅 Study Plan",
         "💬 AI Assistant",
+        "📇 Flashcards",
         "⚙️ Settings"
     ]
 )
@@ -1847,10 +1849,23 @@ with tab3:
     )
 
 # ============================================================
-# SETTINGS TAB
+# FLASHCARDS TAB
 # ============================================================
 
 with tab4:
+    st.header("📇 Flashcards")
+    if not st.session_state.flashcard_sets:
+        st.info(
+            "No flashcards yet. Add some in the 📝 Assignments tab."
+        )
+    else:
+        asdfghk = 1
+
+# ============================================================
+# SETTINGS TAB
+# ============================================================
+
+with tab5:
     st.header("⚙️ Settings")
     st.markdown(
         '<p class="chat-subtitle">Edit your profile, courses, and study preferences.</p>',
