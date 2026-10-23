@@ -3,14 +3,16 @@ import html
 import json
 import re
 import secrets
+import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from ollama import Client
+from ollama import Client, ResponseError
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 
 import ab_calendar
 import calendar_export
+import scheduler
 import setup_forms as setup
 import storage
 import uploads
@@ -490,6 +492,11 @@ div[data-baseweb="select"] {
     background-color: transparent !important;
 }
 
+.chat-thinking {
+    color: #94A3B8;
+    font-style: italic;
+}
+
 [data-testid="stMarkdownContainer"] a {
     color: #A78BFA !important;
 }
@@ -597,12 +604,26 @@ except Exception:
     )
     st.stop()
 
+AI_TIMEOUT_SECONDS = 90
+
+AI_ATTEMPTS = 2
+
+TASK_TIMEOUT_SECONDS = 12
+
 client = Client(
     host="https://ollama.com",
     headers={
         "Authorization": f"Bearer {ollama_api_key}"
-    }
+    },
+    timeout=AI_TIMEOUT_SECONDS
+)
 
+task_client = Client(
+    host="https://ollama.com",
+    headers={
+        "Authorization": f"Bearer {ollama_api_key}"
+    },
+    timeout=TASK_TIMEOUT_SECONDS
 )
 
 MODEL = "gpt-oss:20b-cloud"
@@ -672,8 +693,27 @@ def signed_in_with_google():
     return google_login_available() and st.user.is_logged_in
 
 
+def read_guest_cookie():
+    with COOKIE_SLOT:
+        controller = CookieController(key="studyflow_cookie_controller")
+
+        if "cookie_controller_loaded" not in st.session_state:
+            st.session_state.cookie_controller_loaded = True
+            st.stop()
+
+        return controller.get(GUEST_COOKIE)
+
+
 def existing_guest_token():
-    return st.session_state.get("guest_token") or st.context.cookies.get(GUEST_COOKIE)
+    token = st.session_state.get("guest_token") or st.context.cookies.get(GUEST_COOKIE)
+    if token or st.session_state.get("guest_cookie_checked"):
+        return token
+
+    token = read_guest_cookie()
+    st.session_state.guest_cookie_checked = True
+    if token:
+        st.session_state.guest_token = token
+    return token
 
 
 def create_guest_token():
@@ -879,58 +919,94 @@ def date_context(days=14):
     return "\n".join(lines)
 
 
-def plan_days():
-    today = student_now().date()
-    latest = today
-    for assignment in st.session_state.assignments:
-        try:
-            due = datetime.strptime(str(assignment.get("due_date")), "%Y-%m-%d").date()
-        except ValueError:
-            continue
-        latest = max(latest, due)
-    return min(max((latest - today).days, 14), 60)
-
-
 # ============================================================
 # AI HELPER
 # ============================================================
 
+def build_messages(prompt, system_message, conversation=None, images=None):
+    messages = [
+        {
+            "role": "system",
+            "content": system_message
+        }
+    ]
+
+    if conversation:
+        messages[0]["content"] += "\n\n" + prompt
+        for m in conversation:
+            model_message = {
+                "role": m["role"],
+                "content": m["content"]
+            }
+            if m.get("images"):
+                model_message["images"] = m["images"]
+            messages.append(model_message)
+    else:
+        user_message = {
+            "role": "user",
+            "content": prompt
+        }
+        if images:
+            user_message["images"] = images
+        messages.append(user_message)
+
+    return messages
+
+
+def think_setting(model):
+    return "low" if model.startswith("gpt-oss") else False
+
+
+def is_timeout(error):
+    return "timeout" in type(error).__name__.lower()
+
+
+def call_model(model, messages, use_json, temperature):
+    request = {
+        "model": model,
+        "messages": messages,
+        "format": "json" if use_json else None,
+        "options": {"temperature": temperature}
+    }
+
+    for attempt in range(AI_ATTEMPTS):
+        started = time.monotonic()
+        try:
+            try:
+                response = client.chat(think=think_setting(model), **request)
+            except ResponseError as error:
+                if "think" not in str(error).lower():
+                    raise
+                response = client.chat(**request)
+            print(f"AI {model} answered in {time.monotonic() - started:.1f}s")
+            return response
+        except Exception as error:
+            print(f"AI {model} failed after {time.monotonic() - started:.1f}s: {type(error).__name__}")
+            if is_timeout(error) and attempt < AI_ATTEMPTS - 1:
+                continue
+            raise
+
+
+def stream_model(model, messages, temperature):
+    request = {
+        "model": model,
+        "messages": messages,
+        "options": {"temperature": temperature},
+        "stream": True
+    }
+
+    try:
+        yield from client.chat(think=think_setting(model), **request)
+    except ResponseError as error:
+        if "think" not in str(error).lower():
+            raise
+        yield from client.chat(**request)
+
+
 def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None, model=MODEL, temperature=0):
     try:
-        messages = [
-            {
-                "role": "system",
-                "content": system_message
-            }
-        ]
-
-        if conversation:
-            messages[0]["content"] += "\n\n" + prompt
-            for m in conversation:
-                model_message = {
-                    "role": m["role"],
-                    "content": m["content"]
-                }
-                if m.get("images"):
-                    model_message["images"] = m["images"]
-                messages.append(model_message)
-        else:
-            user_message = {
-                "role": "user",
-                "content": prompt
-            }
-            if images:
-                user_message["images"] = images
-            messages.append(user_message)
-
-        response = client.chat(
-            model=model,
-            messages=messages,
-            format="json" if use_json else None,
-            options={
-                "temperature": temperature
-            }
-        )
+        messages = build_messages(prompt, system_message, conversation, images)
+        response = call_model(model, messages, use_json, temperature)
 
         result = response.message.content
 
@@ -965,8 +1041,12 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None
         return None
 
     except Exception as e:
-        st.error("Unable to connect to Ollama.")
-        st.code(str(e))
+        print("AI REQUEST FAILED:", type(e).__name__, e)
+        if is_timeout(e):
+            st.error("The AI took too long to answer. Please try again in a minute.")
+        else:
+            st.error("Unable to connect to Ollama.")
+            st.code(str(e))
         return None
 
 
@@ -1180,71 +1260,96 @@ def show_calendar_export(sessions, zone_name):
             )
 
 
+def is_school_day_for_student(day):
+    if not uses_ab_calendar():
+        return day.weekday() < 5
+    if ab_calendar.in_school_year(day):
+        return ab_calendar.day_type(day) is not None
+    return day.weekday() < 5
+
+
+def write_tasks(sessions):
+    if not sessions:
+        return {}
+
+    details = []
+    for number, session in enumerate(sessions, start=1):
+        details.append({
+            "id": number,
+            "course": session["course"],
+            "assignment": session["assignment"],
+            "notes": session["description"][:300],
+            "part": f"{session['part']} of {session['parts']}",
+            "minutes": session["minutes"],
+            "due": session["due_date"]
+        })
+
+    prompt = f"""
+Write one study task for each study session below.
+
+Sessions:
+{json.dumps(details, indent=1)}
+
+Rules:
+- Each task says exactly what to do in that session, in 6 to 15 words.
+- Parts of the same assignment build on each other, from getting started to finishing.
+- For tests and quizzes, use active study: practice problems, self-quizzing, flashcards, reviewing mistakes.
+- Fit the task to the session length.
+- Use the notes when they help, but never invent page numbers or details.
+
+Return ONLY valid JSON in exactly this format:
+{{"tasks": [{{"id": 1, "task": ""}}]}}
+"""
+    messages = build_messages(prompt, "You are a study coach who writes short, specific study tasks. Return only valid JSON.")
+    request = {
+        "model": CHAT_MODEL,
+        "messages": messages,
+        "format": "json",
+        "options": {"temperature": 0.3}
+    }
+
+    started = time.monotonic()
+    try:
+        try:
+            response = task_client.chat(think=False, **request)
+        except ResponseError as error:
+            if "think" not in str(error).lower():
+                raise
+            response = task_client.chat(**request)
+        data = json.loads(response.message.content)
+        print(f"AI tasks written in {time.monotonic() - started:.1f}s")
+    except Exception as error:
+        print(f"AI tasks skipped after {time.monotonic() - started:.1f}s: {type(error).__name__}")
+        return {}
+
+    tasks = {}
+    for item in data.get("tasks", []) if isinstance(data, dict) else []:
+        if isinstance(item, dict) and str(item.get("task") or "").strip():
+            tasks[_whole_number(item.get("id"), 0)] = str(item["task"]).strip()
+    return tasks
+
+
 def generate_plan():
     if not st.session_state.assignments:
         return None
-    student = setup.describe_for_ai(
-        st.session_state.profile,
-        st.session_state.courses,
-        st.session_state.activities,
-        st.session_state.study_style
+
+    sessions, unscheduled = scheduler.build_plan(
+        st.session_state.assignments,
+        setup.complete_study_style(st.session_state.study_style),
+        setup.normalize_activities(st.session_state.activities),
+        student_now().replace(tzinfo=None),
+        is_school_day_for_student
     )
-    prompt = f"""
-{date_context(plan_days())}
 
-About the student:
-{student}
+    tasks = write_tasks(sessions)
+    for number, session in enumerate(sessions, start=1):
+        session["task"] = tasks.get(number) or scheduler.default_task(session)
 
-The student's assignments are:
-{json.dumps(st.session_state.assignments, indent=4)}
+    return {
+        "study_sessions": [scheduler.public_session(session) for session in sessions],
+        "unscheduled": unscheduled
+    }
 
-Create a realistic study schedule.
-
-Rules:
-1. Earlier deadlines have higher priority.
-2. Difficult assignments should receive more preparation.
-3. Large assignments should be split across multiple sessions.
-4. Make each session about the student's preferred session length,
-   and never longer than 90 minutes.
-5. On school days (Mon-Fri), only schedule between the homework start time
-   and 30 minutes before bedtime.
-6. Only schedule on weekends if the student studies on weekends.
-7. Never schedule during classes, dinner, or the student's activities.
-8. Do not schedule after the assignment's due date.
-9. Never go over the student's maximum study minutes per day.
-10. If the student wants lighter Fridays, keep Friday to about half the usual amount.
-11. If the student wants a Sunday catch-up day, keep Sunday free for catching up and review.
-12. Leave the student's preferred break length between sessions.
-13. Put harder work during the student's peak productivity time when possible.
-14. Spread work across multiple days and avoid overwhelming the student.
-15. Include a specific task for every study session.
-16. Treat weekdays marked "no school" like weekend days.
-17. If the calendar shows A/B days, each course only meets on its own day.
-    Put review for a course on the evening before it meets, and finish
-    homework for a course before its next class day.
-
-Return ONLY valid JSON.
-Use exactly this format:
-
-{{
-    "study_sessions": [
-        {{
-            "date": "YYYY-MM-DD",
-            "start_time": "16:00",
-            "end_time": "17:00",
-            "course": "",
-            "assignment": "",
-            "task": "",
-            "minutes": 60
-        }}
-    ]
-}}
-"""
-    return ask_ai(
-        prompt,
-        "You are an expert student study scheduler. "
-        "Create realistic schedules and return only valid JSON."
-    )
 
 # ============================================================
 # CHATBOT
@@ -1313,19 +1418,52 @@ def pull_assignment_tags(reply):
     return clean_reply, added
 
 
+def visible_reply(text):
+    text = UNFINISHED_TAG.sub("", ASSIGNMENT_TAG.sub("", text))
+    return re.sub(r"<[a-z_]*$", "", text).strip()
+
+
+def stream_reply(messages, placeholder):
+    for attempt in range(AI_ATTEMPTS):
+        text = ""
+        started = time.monotonic()
+        try:
+            for chunk in stream_model(CHAT_MODEL, messages, CHAT_TEMPERATURE):
+                piece = chunk.message.content or ""
+                if piece:
+                    text += piece
+                    placeholder.markdown(visible_reply(text) + " ▌")
+            print(f"AI {CHAT_MODEL} streamed in {time.monotonic() - started:.1f}s")
+            return text
+        except Exception as error:
+            print(f"AI {CHAT_MODEL} stream failed after {time.monotonic() - started:.1f}s: {type(error).__name__}")
+            if is_timeout(error) and not text and attempt < AI_ATTEMPTS - 1:
+                continue
+            raise
+
+
 def chatbot(message):
     history = st.session_state.messages[-MAX_HISTORY_MESSAGES:]
+    messages = build_messages(chat_context(), CHAT_SYSTEM_PROMPT, conversation=history)
 
-    reply = ask_ai(
-        chat_context(),
-        CHAT_SYSTEM_PROMPT,
-        conversation=history,
-        use_json=False,
-        model=CHAT_MODEL,
-        temperature=CHAT_TEMPERATURE
-    )
+    placeholder = st.empty()
+    placeholder.markdown('<span class="chat-thinking">Thinking…</span>', unsafe_allow_html=True)
+
+    try:
+        reply = stream_reply(messages, placeholder)
+    except Exception as error:
+        placeholder.empty()
+        print("AI REQUEST FAILED:", type(error).__name__, error)
+        if is_timeout(error):
+            st.error("The AI took too long to answer. Please try again in a minute.")
+        else:
+            st.error("Unable to connect to Ollama.")
+            st.code(str(error))
+        return None
 
     if not reply:
+        placeholder.empty()
+        st.error("The AI sent back an empty reply. Please try again.")
         return None
 
     reply, added = pull_assignment_tags(reply)
@@ -1338,8 +1476,11 @@ def chatbot(message):
             reply = f"Added {names} to your assignments."
 
     if not reply:
+        placeholder.empty()
         st.error("The AI sent back an empty reply. Please try again.")
         return None
+
+    placeholder.markdown(reply)
 
     st.session_state.messages.append({
         "role": "assistant",
@@ -1814,6 +1955,16 @@ with tab2:
         )
         zone_name = st.session_state.profile.get("timezone") or APP_TIMEZONE
 
+        for item in st.session_state.study_plan.get("unscheduled", []):
+            st.warning(
+                f"Couldn't fit {item.get('minutes', '')} min of **{item.get('assignment', '')}**: "
+                f"{item.get('reason', '')}. Try raising your max study per day "
+                "or turning on weekend studying in ⚙️ Settings."
+            )
+
+        if not sessions:
+            st.info("There was no free time to schedule before your due dates.")
+
         for session in sessions:
             if not isinstance(session, dict):
                 continue
@@ -1937,16 +2088,12 @@ with tab3:
                 assignment_count = len(st.session_state.assignments)
 
                 with st.chat_message("assistant", avatar=LOGO_PATH):
-                    with st.spinner("Thinking…"):
-                        reply = chatbot(message_text)
+                    chatbot(message_text)
 
                     save()
 
                     if len(st.session_state.assignments) > assignment_count:
                         st.rerun()
-
-                    if reply:
-                        st.markdown(reply)
 
     components.html(
         """
