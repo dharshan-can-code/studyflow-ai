@@ -211,7 +211,7 @@ def build_plan(assignments, style, activities, now, is_school_day):
         hard = _number(assignment.get("difficulty"), 3) >= 4 or bool(
             hardest and course and (hardest in course.lower() or course.lower() in hardest)
         )
-        test = is_test(name)
+        test = is_test(name, assignment.get("type"))
         placed = []
 
         def place(pieces, window):
@@ -259,6 +259,7 @@ def build_plan(assignments, style, activities, now, is_school_day):
                 "end_time": _clock(session["end"]),
                 "course": course,
                 "assignment": name,
+                "type": assignment.get("type") or "",
                 "task": "",
                 "minutes": session["minutes"],
                 "part": index,
@@ -276,9 +277,13 @@ def build_plan(assignments, style, activities, now, is_school_day):
 # ============================================================
 
 TEST_WORDS = {"test", "tests", "quiz", "quizzes", "exam", "exams", "final", "finals", "midterm", "sol", "sols"}
+PREP_TYPES = ("test", "quiz", "presentation")
 
 
-def is_test(name):
+def is_test(name, kind=""):
+    kind = str(kind or "").strip().lower()
+    if kind:
+        return kind in PREP_TYPES
     words = "".join(ch if ch.isalnum() else " " for ch in str(name or "").lower()).split()
     return any(word in TEST_WORDS for word in words)
 
@@ -287,7 +292,16 @@ def default_task(session):
     part = session.get("part", 1)
     parts = session.get("parts", 1)
 
-    if is_test(session.get("assignment")):
+    if str(session.get("type") or "").lower() == "presentation":
+        if parts == 1:
+            return "Review your slides, then rehearse the whole presentation out loud"
+        if part == 1:
+            return "Outline your main points and draft or review your slides"
+        if part == parts:
+            return "Final run-through: rehearse out loud and time yourself"
+        return "Rehearse out loud and smooth out the parts that feel shaky"
+
+    if is_test(session.get("assignment"), session.get("type")):
         if parts == 1:
             return "Review your notes, then do practice questions and check your answers"
         if part == 1:

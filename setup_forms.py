@@ -521,6 +521,7 @@ def activities_editor(prefix, activities):
                     "Starts",
                     value=to_time(activity.get("start")),
                     step=300,
+                    format="12h",
                     key=f"{base}_start"
                 )
 
@@ -529,6 +530,7 @@ def activities_editor(prefix, activities):
                     "Ends",
                     value=to_time(activity.get("end")),
                     step=300,
+                    format="12h",
                     key=f"{base}_end"
                 )
 
@@ -581,21 +583,22 @@ def routine_form(prefix, study_style):
     wake_column, bed_column = st.columns(2)
 
     with wake_column:
-        wake = st.time_input("Wake up", value=to_time(style["wake"]), step=300, key=f"{prefix}_routine_wake")
+        wake = st.time_input("Wake up", value=to_time(style["wake"]), step=300, format="12h", key=f"{prefix}_routine_wake")
 
     with bed_column:
-        bed = st.time_input("Bedtime", value=to_time(style["bed"]), step=300, key=f"{prefix}_routine_bed")
+        bed = st.time_input("Bedtime", value=to_time(style["bed"]), step=300, format="12h", key=f"{prefix}_routine_bed")
 
     dinner_column, homework_column = st.columns(2)
 
     with dinner_column:
-        dinner = st.time_input("Dinner", value=to_time(style["dinner"]), step=300, key=f"{prefix}_routine_dinner")
+        dinner = st.time_input("Dinner", value=to_time(style["dinner"]), step=300, format="12h", key=f"{prefix}_routine_dinner")
 
     with homework_column:
         homework = st.time_input(
             "Homework start",
             value=to_time(style["homework_start"]),
             step=300,
+            format="12h",
             key=f"{prefix}_routine_homework"
         )
 
