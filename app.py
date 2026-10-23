@@ -2061,252 +2061,230 @@ with tab4:
 # ============================================================
 # FOOTER
 # ============================================================
+import textwrap
+import streamlit as st
 
-st.markdown("""
-<style>
-.studyflow-footer {
-    margin-top: 3.5rem;
-    font-family: 'Inter', sans-serif;
-    color: #F8FAFC;
-    overflow: hidden;
-    border-radius: 0;
-}
-
-.footer-main {
-    background: linear-gradient(115deg, #263b75 0%, #343b83 45%, #369b91 100%);
-    padding: 3rem 5%;
-    display: grid;
-    grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr;
-    gap: 2.5rem;
-}
-
-.footer-logo {
-    font-family: 'Sora', sans-serif;
-    font-size: 25px;
-    font-weight: 800;
-    letter-spacing: -0.8px;
-    margin-bottom: 1rem;
-}
-
-.footer-logo span {
-    color: #C4B5FD;
-}
-
-.footer-description {
-    font-size: 14px;
-    line-height: 1.8;
-    color: #E0E7FF;
-    max-width: 260px;
-    margin-bottom: 1.25rem;
-}
-
-.footer-contact {
-    font-size: 13px;
-    line-height: 2.2;
-    color: #F1F5F9;
-}
-
-.footer-contact a {
-    color: #FFFFFF;
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.footer-contact a:hover,
-.footer-links a:hover {
-    color: #C4B5FD;
-}
-
-.footer-heading {
-    font-size: 16px;
-    font-weight: 800;
-    margin-bottom: 1.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-.footer-heading::after {
-    content: "";
-    display: block;
-    width: 38px;
-    height: 3px;
-    background: #C4B5FD;
-    border-radius: 5px;
-    margin-top: 10px;
-}
-
-.footer-links {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.footer-links a {
-    color: #E0E7FF;
-    text-decoration: none;
-    font-size: 13px;
-    transition: color 0.2s ease;
-}
-
-.footer-socials {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 1rem;
-}
-
-.footer-socials a {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.95);
-    color: #3730A3;
-    font-size: 12px;
-    font-weight: 800;
-    text-decoration: none;
-    transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.footer-socials a:hover {
-    transform: translateY(-3px);
-    background: #DDD6FE;
-}
-
-.footer-bottom {
-    background: #17233E;
-    padding: 1.25rem 5%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 12px;
-    color: #94A3B8;
-}
-
-.footer-bottom strong {
-    color: #C4B5FD;
-    font-weight: 600;
-}
-
-.footer-bottom-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-}
-
-.footer-bottom-links a {
-    color: #94A3B8;
-    text-decoration: none;
-}
-
-.footer-bottom-links a:hover {
-    color: #FFFFFF;
-}
-
-@media (max-width: 850px) {
-    .footer-main {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding: 2.5rem 6%;
-        gap: 2.5rem 1.5rem;
+st.markdown(
+    textwrap.dedent(
+        """
+    <style>
+    .studyflow-footer {
+        margin-top: 3.5rem;
+        font-family: 'Inter', sans-serif;
+        color: #F8FAFC;
+        overflow: hidden;
+        border-radius: 0;
     }
-}
 
-@media (max-width: 500px) {
     .footer-main {
-        grid-template-columns: 1fr;
-        gap: 2rem;
+        background: linear-gradient(115deg, #263b75 0%, #343b83 45%, #369b91 100%);
+        padding: 3rem 5%;
+        display: grid;
+        grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr;
+        gap: 2.5rem;
+    }
+
+    .footer-logo {
+        font-family: 'Sora', sans-serif;
+        font-size: 25px;
+        font-weight: 800;
+        letter-spacing: -0.8px;
+        margin-bottom: 1rem;
+    }
+
+    .footer-logo span {
+        color: #C4B5FD;
+    }
+
+    .footer-description {
+        font-size: 14px;
+        line-height: 1.8;
+        color: #E0E7FF;
+        max-width: 260px;
+        margin-bottom: 1.25rem;
+    }
+
+    .footer-contact {
+        font-size: 13px;
+        line-height: 2.2;
+        color: #F1F5F9;
+    }
+
+    .footer-contact a {
+        color: #FFFFFF;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .footer-contact a:hover,
+    .footer-links a:hover {
+        color: #C4B5FD;
+    }
+
+    .footer-heading {
+        font-size: 16px;
+        font-weight: 800;
+        margin-bottom: 1.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .footer-heading::after {
+        content: "";
+        display: block;
+        width: 38px;
+        height: 3px;
+        background: #C4B5FD;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
+
+    .footer-links {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .footer-links a {
+        color: #E0E7FF;
+        text-decoration: none;
+        font-size: 13px;
+        transition: color 0.2s ease;
+    }
+
+    .footer-socials {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 1rem;
+    }
+
+    .footer-socials a {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.95);
+        color: #3730A3;
+        font-size: 12px;
+        font-weight: 800;
+        text-decoration: none;
+        transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .footer-socials a:hover {
+        transform: translateY(-3px);
+        background: #DDD6FE;
     }
 
     .footer-bottom {
-        flex-direction: column;
-        align-items: flex-start;
+        background: #17233E;
+        padding: 1.25rem 5%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 12px;
+        color: #94A3B8;
     }
-}
-</style>
 
-<div class="studyflow-footer">
-    <div class="footer-main">
+    .footer-bottom strong {
+        color: #C4B5FD;
+        font-weight: 600;
+    }
 
-        <div class="footer-brand-column">
-            <div class="footer-logo">
-                StudyFlow<span> AI</span>
+    .footer-bottom-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .footer-bottom-links a {
+        color: #94A3B8;
+        text-decoration: none;
+    }
+
+    .footer-bottom-links a:hover {
+        color: #FFFFFF;
+    }
+
+    @media (max-width: 850px) {
+        .footer-main {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 2.5rem 6%;
+            gap: 2.5rem 1.5rem;
+        }
+    }
+
+    @media (max-width: 500px) {
+        .footer-main {
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        .footer-bottom {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+    </style>
+
+    <div class="studyflow-footer">
+        <div class="footer-main">
+            <div class="footer-brand-column">
+                <div class="footer-logo">StudyFlow<span> AI</span></div>
+                <div class="footer-description">
+                    Your personal study sidekick. Stay organized, understand
+                    difficult topics, and make every study session count.
+                </div>
+                <div class="footer-contact">
+                    <a href="mailto:YOUR_EMAIL@example.com">YOUR_EMAIL@example.com</a><br>
+                    Built for students, by students.
+                </div>
             </div>
 
-            <div class="footer-description">
-                Your personal study sidekick. Stay organized, understand
-                difficult topics, and make every study session count.
+            <div>
+                <div class="footer-heading">About Us</div>
+                <div class="footer-links">
+                    <a href="mailto:YOUR_EMAIL@example.com?subject=About%20StudyFlow">Our Mission</a>
+                    <a href="mailto:YOUR_EMAIL@example.com?subject=Feedback">Send Feedback</a>
+                    <a href="mailto:YOUR_EMAIL@example.com?subject=Contact">Contact Us</a>
+                </div>
             </div>
 
-            <div class="footer-contact">
-                <a href="mailto:YOUR_EMAIL@example.com">
-                    YOUR_EMAIL@example.com
-                </a><br>
-                Built for students, by students.
+            <div>
+                <div class="footer-heading">Resources</div>
+                <div class="footer-links">
+                    <a href="https://studyflow.ai">StudyFlow AI</a>
+                    <a href="mailto:YOUR_EMAIL@example.com?subject=Help">Help & Support</a>
+                    <a href="mailto:YOUR_EMAIL@example.com?subject=Feature%20Request">Request a Feature</a>
+                </div>
+            </div>
+
+            <div>
+                <div class="footer-heading">Follow Us</div>
+                <div class="footer-description">Stay connected and follow the journey.</div>
+                <div class="footer-socials">
+                    <a href="YOUR_INSTAGRAM_URL" target="_blank" title="Instagram">IG</a>
+                    <a href="YOUR_GITHUB_URL" target="_blank" title="GitHub">GH</a>
+                    <a href="YOUR_LINKEDIN_URL" target="_blank" title="LinkedIn">in</a>
+                </div>
             </div>
         </div>
 
-        <div>
-            <div class="footer-heading">About Us</div>
-            <div class="footer-links">
-                <a href="mailto:YOUR_EMAIL@example.com?subject=About%20StudyFlow">
-                    Our Mission
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Feedback">
-                    Send Feedback
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Contact">
-                    Contact Us
-                </a>
+        <div class="footer-bottom">
+            <div>© 2026 <strong>StudyFlow AI</strong>. All rights reserved.</div>
+            <div class="footer-bottom-links">
+                <a href="YOUR_PRIVACY_POLICY_URL">Privacy Policy</a>
+                <a href="YOUR_TERMS_URL">Terms of Use</a>
+                <span>Powered by <strong>Ollama</strong></span>
             </div>
         </div>
-
-        <div>
-            <div class="footer-heading">Resources</div>
-            <div class="footer-links">
-                <a href="https://studyflow.ai">
-                    StudyFlow AI
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Help">
-                    Help & Support
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Feature%20Request">
-                    Request a Feature
-                </a>
-            </div>
-        </div>
-
-        <div>
-            <div class="footer-heading">Follow Us</div>
-            <div class="footer-description">
-                Stay connected and follow the journey.
-            </div>
-
-            <div class="footer-socials">
-                <a href="YOUR_INSTAGRAM_URL" target="_blank"
-                   title="Instagram">IG</a>
-                <a href="YOUR_GITHUB_URL" target="_blank"
-                   title="GitHub">GH</a>
-                <a href="YOUR_LINKEDIN_URL" target="_blank"
-                   title="LinkedIn">in</a>
-            </div>
-        </div>
-
     </div>
-
-    <div class="footer-bottom">
-        <div>
-            © 2026 <strong>StudyFlow AI</strong>. All rights reserved.
-        </div>
-
-        <div class="footer-bottom-links">
-            <a href="YOUR_PRIVACY_POLICY_URL">Privacy Policy</a>
-            <a href="YOUR_TERMS_URL">Terms of Use</a>
-            <span>Powered by <strong>Ollama</strong></span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    """
+    ),
+    unsafe_allow_html=True,
+)
