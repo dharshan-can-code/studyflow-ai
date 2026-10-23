@@ -430,6 +430,16 @@ div[data-baseweb="select"] {
     margin-top: 4px;
 }
 
+.greeting-icon {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal;
+    font-size: 26px;
+    line-height: 1;
+    vertical-align: -4px;
+    color: #A78BFA;
+    font-feature-settings: 'liga';
+}
+
 .greeting-date {
     font-family: 'Inter', sans-serif;
     color: #94A3B8;
@@ -443,6 +453,27 @@ div[data-baseweb="select"] {
     margin: 24px 0 16px;
 }
 
+
+/* ============================================================
+   ASSIGNMENT CARDS
+   ============================================================ */
+
+.assignment-type {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #94A3B8;
+}
+
+.assignment-name {
+    font-family: 'Sora', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #F8FAFC;
+    margin-bottom: 0.5rem;
+}
+
 [data-testid="stSidebar"] [data-testid="stIconMaterial"] {
     font-family: 'Material Symbols Rounded' !important;
 }
@@ -450,6 +481,10 @@ div[data-baseweb="select"] {
 [data-testid="stToast"] {
     background-color: #1E293B !important;
     border: 1px solid #334155 !important;
+}
+
+[data-testid="stToast"] [data-testid="stIconMaterial"] {
+    color: #A78BFA !important;
 }
 
 .stButton button[kind="tertiary"] {
@@ -665,6 +700,9 @@ if "found_assignments" not in st.session_state:
 if "found_batch" not in st.session_state:
     st.session_state.found_batch = 0
 
+if "assignment_form" not in st.session_state:
+    st.session_state.assignment_form = 0
+
 
 def prepare_saved_data():
     st.session_state.courses = setup.normalize_courses(st.session_state.courses)
@@ -847,7 +885,7 @@ def save():
                 "Run supabase/add_setup.sql in the Supabase SQL Editor."
             )
         else:
-            st.toast("Couldn't save your latest changes. Check your connection.", icon="⚠️")
+            st.toast("Couldn't save your latest changes. Check your connection.", icon=":material/warning:")
 
 
 def delete_my_data():
@@ -1070,14 +1108,41 @@ def _whole_number(value, default):
         return default
 
 
+ASSIGNMENT_TYPES = [
+    "homework",
+    "test",
+    "quiz",
+    "project",
+    "essay",
+    "presentation",
+    "notes",
+    "program",
+    "script",
+    "other"
+]
+
+def title_case(text):
+    # Words already in all caps are usually acronyms (AP, DNA), so keep them.
+    return " ".join(
+        word if word.isupper() else word[:1].upper() + word[1:].lower()
+        for word in text.split()
+    )
+
+
 def normalize_assignment(assignment):
     priority = _text(assignment.get("priority"), "Medium").title()
     if priority not in ("Low", "Medium", "High"):
         priority = "Medium"
 
+    assignment_type = _text(assignment.get("type"), "").lower()
+    if assignment_type not in ASSIGNMENT_TYPES:
+        assignment_type = ""
+
+    name = _text(assignment.get("name"), "Untitled assignment")
+
     return {
-        "name": _text(assignment.get("name").title(), "Untitled assignment"),
-        "type": _text(assignment.get("type"), ""),
+        "name": title_case(name),
+        "type": assignment_type,
         "course": _text(assignment.get("course"), "General"),
         "due_date": _text(assignment.get("due_date"), "Not set"),
         "difficulty": min(5, max(1, _whole_number(assignment.get("difficulty"), 3))),
@@ -1087,64 +1152,96 @@ def normalize_assignment(assignment):
     }
 
 
-def find_assignments_in_upload(uploaded_file):
-    if uploads.is_pdf(uploaded_file):
-        document_text = uploads.pdf_text(uploaded_file)
-        source = f'Here is the text of the uploaded document:\n"""\n{document_text}\n"""'
-        images = None
-        model = MODEL
-    else:
-        images = [uploads.encode_image(uploaded_file)]
-        source = (
-            "The attached image is a photo of the student's assignment sheet, "
-            "syllabus, or planner page."
-        )
-        model = VISION_MODEL
+def due_date_value(value):
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def due_date_text(value):
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    return _text(value, "Not set")
+
+
+def pretty_due_date(value):
+    day = due_date_value(value)
+    if day is None:
+        return _text(value, "Not set")
+    return f"{day:%a, %b} {day.day}, {day.year}"
+
+
+def extract_assignments(text, uploaded_file=None):
+    sources = []
+    images = None
+    model = MODEL
+
+    if text:
+        sources.append(f'The student described their work like this:\n"""\n{text}\n"""')
+
+    if uploaded_file is not None:
+        if uploads.is_pdf(uploaded_file):
+            document_text = uploads.pdf_text(uploaded_file)
+            sources.append(f'Here is the text of the uploaded document:\n"""\n{document_text}\n"""')
+        else:
+            images = [uploads.encode_image(uploaded_file)]
+            sources.append(
+                "The attached image is a photo of the student's assignment sheet, "
+                "syllabus, or planner page."
+            )
+            model = VISION_MODEL
+
+    source = "\n\n".join(sources)
 
     prompt = f"""
-    {date_context()}
+{date_context()}
 
-    The student's courses are:
-    {json.dumps(setup.course_names(st.session_state.courses))}
+The student's courses are:
+{json.dumps(setup.course_names(st.session_state.courses))}
 
-    {source}
+{source}
 
-    Find every assignment, test, quiz, project, or other item with a due date.
-    Return ONLY valid JSON.
-    Use exactly this format:
-    {{
-        "assignments": [
-            {{
-                "name": "",
-                "type": "",
-                "course": "",
-                "due_date": "YYYY-MM-DD",
-                "difficulty": 3,
-                "estimated_minutes": 60,
-                "priority": "Medium",
-                "description": ""
-            }}
-        ]
-    }}
+Find every assignment, test, quiz, project, or other item the student needs to do.
+Return ONLY valid JSON.
+Use exactly this format:
+{{
+    "assignments": [
+        {{
+            "name": "",
+            "type": "",
+            "course": "",
+            "due_date": "YYYY-MM-DD",
+            "difficulty": 3,
+            "estimated_minutes": 60,
+            "priority": "Medium",
+            "description": ""
+        }}
+    ]
+}}
 
-    Rules:
-    - Only include items that actually appear in the document. Never invent items.
-    - Match the course to one of the student's courses when it clearly fits.
-    - If an item has no due date, use "Not set".
-    - If a date has no year, use the next upcoming date.
-    - Difficulty must be 1-5.
-    - Priority must be Low, Medium, or High.
-    - Estimate realistic focused work time.
-    - Use the assignment type provided by the student (must be test, project, homework, essay, quiz, script, notes, program, presentation, or other), 
-    or infer it from the description only if the student doesn't provide one and you are EXTREMELY SURE you are correct. 
-    Use this information to help with deciding a priority and difficulty level. If you are not sure, leave the type blank.
-    - If nothing is found, return {{"assignments": []}}.
-    - If the type of assignment is a test, quiz, or presentation, the estimated minutes should be the time it takes to prepare for it ONLY,
-    otherwise, the estimated minutes should be the time it takes to complete it.
-    """
+Rules:
+- Only include items the student described or that actually appear in the file. Never invent items.
+- If the student wrote a description and uploaded a file, use the description to fill in or
+  correct details from the file (for example, which course it is for or when it is due).
+- Match the course to one of the student's courses when it clearly fits, using that course's exact name.
+- Use YYYY-MM-DD for the due date. Convert relative dates such as "next Tuesday" using the calendar above.
+- If an item has no due date, use "Not set".
+- If a date has no year, use the next upcoming date.
+- Difficulty must be 1-5 (1 = extremely easy, 5 = extremely difficult).
+- Priority must be Low, Medium, or High.
+- Type must be one of: {", ".join(ASSIGNMENT_TYPES)}.
+  Use the type the student gives, or infer it only if you are EXTREMELY SURE. If you are not sure, leave the type blank.
+  Use the type to help decide the priority and difficulty.
+- If the type is test, quiz, or presentation, the estimated minutes is the time to prepare for it ONLY.
+  Otherwise, it is the time to complete it.
+- Estimate realistic focused work time.
+- Keep the description short and only include details the student or the file gave.
+- If nothing is found, return {{"assignments": []}}.
+"""
     result = ask_ai(
         prompt,
-        "You are an AI academic planner that reads assignment sheets. "
+        "You are an AI academic planner that reads students' descriptions and assignment sheets. "
         "Return only valid JSON.",
         images=images,
         model=model
@@ -1158,53 +1255,6 @@ def find_assignments_in_upload(uploaded_file):
         return []
 
     return [normalize_assignment(item) for item in found if isinstance(item, dict)]
-
-
-def analyze_assignment(text):
-
-    prompt = f"""
-{date_context()}
-
-The student's courses are:
-{json.dumps(setup.course_names(st.session_state.courses))}
-
-Analyze this student's academic task:
-"{text}"
-Return ONLY valid JSON.
-Use exactly this format:
-{{
-    "name": "",
-    "course": "",
-    "due_date": "YYYY-MM-DD",
-    "difficulty": 1,
-    "estimated_minutes": 60,
-    "priority": "Medium",
-    "description": ""
-}}
-
-Rules:
-- Difficulty must be 1-5.
-- 1 = extremely easy.
-- 5 = extremely difficult.
-- Priority must be Low, Medium, or High.
-- Estimate realistic focused work time.
-- Use YYYY-MM-DD for the due date.
-- Do not invent unnecessary information.
-- Match the course to one of the student's courses when it clearly fits,
-  using that course's exact name.
-- If the student gives a relative date such as
-  "next Tuesday", convert it into the correct date.
-- Use the assignment type provided by the student (must be test, project, homework, essay, quiz, script, notes, program, or other), 
-or infer it from the description only if the student doesn't provide one and you are EXTREMELY SURE you are correct. 
-Use this information to help with deciding a priority and difficulty level. If you are not sure, leave the type blank.
-- If the type of assignment is a test, quiz, or presentation, the estimated minutes should be the time it takes to prepare for it ONLY,
-otherwise, the estimated minutes should be the time it takes to complete it.
-"""
-    return ask_ai(
-        prompt,
-        "You are an intelligent AI academic planner. "
-        "Return only valid JSON."
-    )
 
 # ============================================================
 # STUDY PLAN GENERATOR
@@ -1222,7 +1272,7 @@ def plan_day_label(value):
 
 def show_calendar_export(sessions, zone_name):
     with st.container(border=True):
-        st.subheader("📤 Export to your calendar")
+        st.subheader(":material/ios_share: Export to your calendar")
 
         include_due = st.toggle(
             "Include assignment due dates",
@@ -1246,7 +1296,7 @@ def show_calendar_export(sessions, zone_name):
         st.caption(f"{summary}, each study session with a 10-minute reminder.")
 
         st.download_button(
-            "📅 Download calendar file (.ics)",
+            ":material/download: Download calendar file (.ics)",
             data=calendar_export.build_ics(
                 sessions,
                 st.session_state.assignments,
@@ -1263,7 +1313,7 @@ def show_calendar_export(sessions, zone_name):
         with st.expander("How to add it to Google Calendar"):
             st.markdown(
                 "1. Open **calendar.google.com** on a computer.\n"
-                "2. Click **⚙️ Settings**, then **Import & export**.\n"
+                "2. Click **:material/settings: Settings**, then **Import & export**.\n"
                 "3. Choose the file you downloaded and click **Import**.\n\n"
                 "Tip: make a new calendar called *StudyFlow* first and import into it, "
                 "so you can hide or delete the whole plan in one click. "
@@ -1290,6 +1340,7 @@ def write_tasks(sessions):
             "id": number,
             "course": session["course"],
             "assignment": session["assignment"],
+            "type": session["type"],
             "notes": session["description"][:300],
             "part": f"{session['part']} of {session['parts']}",
             "minutes": session["minutes"],
@@ -1306,6 +1357,7 @@ Rules:
 - Each task says exactly what to do in that session, in 6 to 15 words.
 - Parts of the same assignment build on each other, from getting started to finishing.
 - For tests and quizzes, use active study: practice problems, self-quizzing, flashcards, reviewing mistakes.
+- For presentations, prepare slides or notes and rehearse out loud.
 - Fit the task to the session length.
 - Use the notes when they help, but never invent page numbers or details.
 
@@ -1371,6 +1423,7 @@ CHAT_SYSTEM_PROMPT = """You are StudyFlow AI: a capable, friendly, practical stu
 Help with understanding schoolwork, studying for tests, planning workload, writing, brainstorming, and explaining images of homework or notes.
 Use the conversation history to maintain context. Be honest when you are uncertain, never claim to see an image that was not included, and give clear, useful answers. Format with Markdown only when it improves readability.
 When the student is working on homework, guide them through the steps so they understand how to solve it, instead of only giving the final answer.
+Always write times in 12-hour format with AM or PM (for example 4:30 PM), never in 24-hour format.
 """
 
 ASSIGNMENT_TAG = re.compile(r"<add_assignment>(.*?)</add_assignment>", re.S)
@@ -1402,8 +1455,9 @@ Adding assignments:
 If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
 reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
 in exactly this format:
-<add_assignment>{{"name": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
+<add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
 - Difficulty must be 1-5. Priority must be Low, Medium, or High.
+- Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
 - Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
 - Never use these tags for anything else, and never mention them to the student.
 """
@@ -1503,7 +1557,7 @@ def chatbot(message):
 
 
 def render_chat_message(message):
-    avatar = LOGO_PATH if message["role"] == "assistant" else "🙂"
+    avatar = LOGO_PATH if message["role"] == "assistant" else ":material/person:"
 
     with st.chat_message(message["role"], avatar=avatar):
         if message.get("content"):
@@ -1513,10 +1567,10 @@ def render_chat_message(message):
             try:
                 st.image(uploads.decode_image(image_data), width=400)
             except Exception:
-                st.caption("📷 This image couldn't be displayed.")
+                st.caption(":material/image_not_supported: This image couldn't be displayed.")
 
         if message.get("had_image") and not message.get("images"):
-            st.caption("📷 An image was attached here (images aren't saved).")
+            st.caption(":material/photo_camera: An image was attached here (images aren't saved).")
 
 
 # ============================================================
@@ -1594,7 +1648,7 @@ def show_setup_wizard():
 
             with back_column:
                 go_back = st.button(
-                    "‹ Back",
+                    ":material/arrow_back: Back",
                     disabled=step == 0,
                     use_container_width=True,
                     key="wizard_back"
@@ -1602,7 +1656,7 @@ def show_setup_wizard():
 
             with next_column:
                 go_next = st.button(
-                    "Finish ✓" if last_step else "Continue ›",
+                    ":material/check: Finish" if last_step else "Continue :material/arrow_forward:",
                     type="primary",
                     use_container_width=True,
                     key="wizard_next"
@@ -1660,36 +1714,36 @@ with st.sidebar:
     )
 
     if SUPABASE is None:
-        st.caption("💾 Saving is off because no database is connected.")
+        st.caption("Saving is off because no database is connected.")
     elif signed_in_with_google():
         st.caption(f"Signed in as **{st.user.get('name') or st.user.get('email')}**")
         if st.button("Sign out"):
             st.logout()
     else:
-        st.caption("💾 Your plan is saved on this browser only.")
+        st.caption("Your plan is saved on this browser only.")
         if google_login_available() and st.button("Sign in with Google"):
             st.login()
 
     st.divider()
-    st.subheader("📋 Your Setup")
+    st.subheader(":material/checklist: Your Setup")
 
     course_count = len(setup.course_names(st.session_state.courses))
     activity_count = len([a for a in st.session_state.activities if a.get("name")])
     routine = st.session_state.study_style
 
     st.caption(
-        f"📚 {course_count} course{'s' if course_count != 1 else ''} · "
-        f"🏃 {activity_count} activit{'ies' if activity_count != 1 else 'y'}"
+        f":material/book: {course_count} course{'s' if course_count != 1 else ''} · "
+        f":material/directions_walk: {activity_count} activit{'ies' if activity_count != 1 else 'y'}"
     )
     st.caption(
-        f"⏰ Homework from {setup.pretty_time(routine.get('homework_start'))}, "
+        f":material/schedule: Homework from {setup.pretty_time(routine.get('homework_start'))}, "
         f"bedtime {setup.pretty_time(routine.get('bed'))}"
     )
-    st.caption("Change these anytime in the ⚙️ Settings tab.")
+    st.caption("Change these anytime in the :material/settings: Settings tab.")
 
     if SUPABASE is not None and st.session_state.get("student_id"):
         st.divider()
-        with st.expander("🔒 Your data"):
+        with st.expander(":material/lock_person: Your data"):
             st.caption(
                 "StudyFlow saves your profile, courses, activities, routine, "
                 "assignments, study plan, and chat messages so they're here "
@@ -1730,13 +1784,13 @@ if uses_ab_calendar() and ab_calendar.in_school_year(now.date()) and now.weekday
 first_name = html.escape((st.session_state.profile.get("name") or "").split(" ")[0])
 
 st.markdown(
-    f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} 👋</div>'
+    f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} <span class="greeting-icon">waving_hand</span></div>'
     f'<div class="greeting-date">{now:%A, %B} {now.day}{today_label}</div>',
     unsafe_allow_html=True
 )
 
 if "flash" in st.session_state:
-    st.toast(st.session_state.pop("flash"), icon="✅")
+    st.toast(st.session_state.pop("flash"), icon=":material/check_circle:")
 
 st.divider()
 
@@ -1746,10 +1800,10 @@ st.divider()
 
 tab1, tab2, tab3, tab4 = st.tabs(
     [
-        "📝 Assignments",
-        "📅 Study Plan",
-        "💬 AI Assistant",
-        "⚙️ Settings"
+        ":material/assignment_add: Assignments",
+        ":material/calendar_clock: Study Plan",
+        ":material/chat_bubble: AI Assistant",
+        ":material/settings: Settings"
     ]
 )
 
@@ -1758,78 +1812,67 @@ tab1, tab2, tab3, tab4 = st.tabs(
 # ============================================================
 
 with tab1:
-    st.header("📝 Add an Assignment")
+    st.header(":material/edit_note: Add Assignments")
+    st.caption(
+        "Describe your work, upload a photo or PDF of an assignment sheet, "
+        "syllabus, or planner page, or do both. StudyFlow will pull out the "
+        "details so you can check and edit them before anything is added."
+    )
+    form_number = st.session_state.assignment_form
+
     assignment_input = st.text_area(
         "Describe your assignment",
         placeholder=
         "Example: I have an Algebra 2 final next Tuesday. "
-        "It covers chapters 5-8 and I haven't studied yet."
-    )
-    if st.button(
-        "🤖 Analyze Assignment",
-        use_container_width=True
-    ):
-        if not assignment_input.strip():
-            st.warning(
-                "Please enter an assignment first."
-            )
-        else:
-            with st.spinner(
-                "🤖 Analyzing assignment..."
-            ):
-                assignment = analyze_assignment(
-                    assignment_input
-                )
-
-            if assignment:
-                st.session_state.assignments.append(
-                    normalize_assignment(assignment)
-                )
-                save()
-
-                st.success(
-                    "Assignment added!"
-                )
-
-                st.rerun()
-
-    st.subheader("📷 Or upload an assignment sheet")
-    st.caption(
-        "Upload a photo of an assignment sheet, syllabus, or planner page, "
-        "or a PDF. StudyFlow will find the assignments so you can check them "
-        "before adding."
+        "It covers chapters 5-8 and I haven't studied yet.",
+        key=f"assignment_text_{form_number}"
     )
     uploaded_file = st.file_uploader(
-        "Photo or PDF",
+        "Photo or PDF (optional)",
         type=uploads.IMAGE_TYPES + ["pdf"],
-        key="assignment_upload"
+        key=f"assignment_upload_{form_number}"
     )
 
     if st.button(
-        "🔍 Find Assignments",
-        use_container_width=True,
-        disabled=uploaded_file is None
+        "Analyze",
+        use_container_width=True
     ):
-        found = None
-        try:
-            with st.spinner("🤖 Reading your file..."):
-                found = find_assignments_in_upload(uploaded_file)
-        except ValueError as error:
-            st.error(str(error))
+        if not assignment_input.strip() and uploaded_file is None:
+            st.warning(
+                "Describe an assignment or upload a file first."
+            )
+        else:
+            found = None
+            try:
+                with st.spinner(":material/smart_toy: Analyzing..."):
+                    found = extract_assignments(
+                        assignment_input.strip(),
+                        uploaded_file
+                    )
+            except ValueError as error:
+                st.error(str(error))
 
-        if found == []:
-            st.info("I couldn't find any assignments in that file.")
-        elif found:
-            st.session_state.found_assignments = found
-            st.session_state.found_batch += 1
+            if found == []:
+                st.info("I couldn't find any assignments in that. Try adding more detail.")
+            elif found:
+                st.session_state.found_assignments = found
+                st.session_state.found_batch += 1
 
     if st.session_state.found_assignments:
         st.write(
-            "**Here's what I found.** Uncheck anything you don't want "
-            "and fix any mistakes, then add them."
+            "**Here's what I found.** Check every detail and fix anything "
+            "that's wrong, uncheck anything you don't want, then add them."
         )
+        course_options = setup.course_names(st.session_state.courses) + ["General"]
+        for item in st.session_state.found_assignments:
+            if item["course"] not in course_options:
+                course_options.append(item["course"])
+
         edited = st.data_editor(
-            [{"add": True, **item} for item in st.session_state.found_assignments],
+            [
+                {"add": True, **item, "due_date": due_date_value(item["due_date"])}
+                for item in st.session_state.found_assignments
+            ],
             key=f"found_editor_{st.session_state.found_batch}",
             hide_index=True,
             use_container_width=True,
@@ -1846,11 +1889,11 @@ with tab1:
             ],
             column_config={
                 "add": st.column_config.CheckboxColumn("Add?"),
-                "name": st.column_config.TextColumn("Assignment"),
-                "type": st.column_config.TextColumn("Type"),
-                "course": st.column_config.TextColumn("Course"),
-                "due_date": st.column_config.TextColumn("Due (YYYY-MM-DD)"),
-                "difficulty": st.column_config.NumberColumn("Difficulty", min_value=1, max_value=5, step=1),
+                "name": st.column_config.TextColumn("Assignment", required=True),
+                "type": st.column_config.SelectboxColumn("Type", options=ASSIGNMENT_TYPES),
+                "course": st.column_config.SelectboxColumn("Course", options=course_options),
+                "due_date": st.column_config.DateColumn("Due date", format="ddd, MMM D, YYYY"),
+                "difficulty": st.column_config.NumberColumn("Difficulty (1-5)", min_value=1, max_value=5, step=1),
                 "estimated_minutes": st.column_config.NumberColumn("Minutes", min_value=5, step=5),
                 "priority": st.column_config.SelectboxColumn("Priority", options=["Low", "Medium", "High"]),
                 "description": st.column_config.TextColumn("Notes")
@@ -1860,16 +1903,23 @@ with tab1:
         add_column, discard_column = st.columns(2)
 
         with add_column:
-            if st.button("✅ Add Selected", type="primary", use_container_width=True):
+            if st.button(":material/check: Add Selected", type="primary", use_container_width=True):
                 chosen = [
-                    normalize_assignment(row)
+                    normalize_assignment({**row, "due_date": due_date_text(row.get("due_date"))})
                     for row in edited
                     if row.get("add")
                 ]
-                st.session_state.assignments.extend(chosen)
-                st.session_state.found_assignments = []
-                save()
-                st.rerun()
+                if not chosen:
+                    st.warning("Check at least one assignment to add, or discard them.")
+                else:
+                    st.session_state.assignments.extend(chosen)
+                    st.session_state.found_assignments = []
+                    st.session_state.assignment_form += 1
+                    st.session_state.flash = (
+                        f"Added {len(chosen)} assignment{'s' if len(chosen) != 1 else ''}!"
+                    )
+                    save()
+                    st.rerun()
 
         with discard_column:
             if st.button("Discard", use_container_width=True):
@@ -1877,7 +1927,7 @@ with tab1:
                 st.rerun()
 
     st.divider()
-    st.header("📚 Current Assignments")
+    st.header("Current Assignments")
     if not st.session_state.assignments:
         st.info(
             "No assignments yet. Add one above!"
@@ -1887,16 +1937,23 @@ with tab1:
         for i, assignment in enumerate(
             st.session_state.assignments
         ):
+            assignment_type = assignment.get("type") or ""
+            is_prep = assignment_type in scheduler.PREP_TYPES
+
             with st.container(border=True):
                 col1, col2, col3 = st.columns(
                     [3, 2, 1]
                 )
                 with col1:
-                    st.html(f"<strong><span style=\"margin-bottom: 0rem; color: rgb(119, 119, 119); font-family: 'Inter'; font-size: 1.2rem;\">{assignment.get('type', '').upper()}</span></strong>")
-                    st.subheader(
-                        assignment["name"]
+                    type_label = (
+                        f'<div class="assignment-type">{html.escape(assignment_type.upper())}</div>'
+                        if assignment_type else ""
                     )
-                    st.html(f"<style>#{assignment.get('name').replace(' ', '-').lower()} {{ padding-top: 0rem; }}</style>")
+                    st.markdown(
+                        f'{type_label}<div class="assignment-name">'
+                        f'{html.escape(assignment.get("name", ""))}</div>',
+                        unsafe_allow_html=True
+                    )
                     st.write(
                         assignment.get(
                             "description",
@@ -1906,30 +1963,34 @@ with tab1:
 
                 with col2:
                     st.write(
-                        f"📚 **{assignment['course']}**"
+                        f":material/assignment: **{assignment.get('course', 'General')}**"
+                    )
+                    due_label = (
+                        f"{assignment_type.title()} on" if is_prep else "Due"
                     )
                     st.write(
-                        f"📅 Due: " if not assignment.get("type") in ['test', 'quiz', 'presentation'] else "📅 "
-                        f"{assignment['due_date']}"
+                        f":material/event_note: {due_label}: "
+                        f"{pretty_due_date(assignment.get('due_date'))}"
                     )
+                    time_label = ":material/local_library: Prep time" if is_prep else ":material/timer: Work time"
                     st.write(
-                        f"⏱️ " if not assignment.get("type") in ['test', 'quiz', 'presentation'] else "✍ "
-                        f"{assignment['estimated_minutes']} min"
+                        f"{time_label}: "
+                        f"{assignment.get('estimated_minutes', 60)} min"
                     )
 
                 with col3:
                     st.write(
                         f"Difficulty: "
-                        f"{assignment['difficulty']}/5"
+                        f"{assignment.get('difficulty', 3)}/5"
                     )
 
                     st.write(
                         f"Priority: "
-                        f"{assignment['priority']}"
+                        f"{assignment.get('priority', 'Medium')}"
                     )
 
                     if st.button(
-                        "🗑️",
+                        ":material/delete:",
                         key=f"delete_{i}"
                     ):
                         st.session_state.assignments.pop(
@@ -1943,9 +2004,9 @@ with tab1:
 # ============================================================
 
 with tab2:
-    st.header("📅 Your Study Plan")
+    st.header(":material/calendar_month: Your Study Plan")
     if st.button(
-        "✨ Generate Study Plan",
+        ":material/auto_awesome: Generate Study Plan",
         use_container_width=True
     ):
         if not st.session_state.assignments:
@@ -1954,7 +2015,7 @@ with tab2:
             )
         else:
             with st.spinner(
-                "🤖 Building your personalized study plan..."
+                ":material/smart_toy: Building your personalized study plan..."
             ):
                 plan = generate_plan()
             if plan:
@@ -1975,7 +2036,7 @@ with tab2:
             st.warning(
                 f"Couldn't fit {item.get('minutes', '')} min of **{item.get('assignment', '')}**: "
                 f"{item.get('reason', '')}. Try raising your max study per day "
-                "or turning on weekend studying in ⚙️ Settings."
+                "or turning on weekend studying in :material/settings: Settings."
             )
 
         if not sessions:
@@ -1990,22 +2051,22 @@ with tab2:
                 )
                 with col1:
                     st.write(
-                        f"📅 **{session.get('date', '')}**"
+                        f":material/event: **{session.get('date', '')}**"
                     )
                     day_label = plan_day_label(session.get("date"))
                     if day_label:
                         st.caption(day_label)
                     st.write(
-                        f"⏰ "
-                        f"{session.get('start_time', '')} - "
-                        f"{session.get('end_time', '')}"
+                        f":material/schedule: "
+                        f"{setup.pretty_time(session.get('start_time'))} - "
+                        f"{setup.pretty_time(session.get('end_time'))}"
                     )
                 with col2:
                     st.write(
-                        f"📚 **{session.get('course', '')}**"
+                        f":material/menu_book: **{session.get('course', '')}**"
                     )
                     st.write(
-                        f"📝 {session.get('assignment', '')}"
+                        f":material/assignment: {session.get('assignment', '')}"
                     )
 
                 with col3:
@@ -2018,12 +2079,12 @@ with tab2:
                     )
                     google_link = calendar_export.google_calendar_link(session, zone_name)
                     if google_link:
-                        st.markdown(f"[➕ Add to Google Calendar]({google_link})")
+                        st.markdown(f":material/calendar_add_on: [Add to Google Calendar]({google_link})")
 
         show_calendar_export(sessions, zone_name)
 
         with st.expander(
-            "📄 View Raw Study Plan"
+            ":material/data_object: View Raw Study Plan"
         ):
             st.json(
                 st.session_state.study_plan
@@ -2041,14 +2102,14 @@ with tab2:
 
 with tab3:
     st.markdown('<div class="chat-kicker">Your study sidekick</div>', unsafe_allow_html=True)
-    st.header("💬 StudyFlow AI")
+    st.header(":material/forum: StudyFlow AI")
     st.markdown(
         '<p class="chat-subtitle">Ask about a tough topic, plan your week, '
         'or attach a photo of a problem for a step-by-step explanation.</p>',
         unsafe_allow_html=True
     )
 
-    if st.session_state.messages and st.button("🗑️ Clear chat"):
+    if st.session_state.messages and st.button(":material/delete: Clear chat"):
         st.session_state.messages = []
         save()
         st.rerun()
@@ -2152,7 +2213,7 @@ with tab3:
 # ============================================================
 
 with tab4:
-    st.header("⚙️ Settings")
+    st.header(":material/settings: Settings")
     st.markdown(
         '<p class="chat-subtitle">Edit your profile, courses, and study preferences.</p>',
         unsafe_allow_html=True
@@ -2160,16 +2221,16 @@ with tab4:
 
     profile_tab, courses_tab, activities_tab, style_tab = st.tabs(
         [
-            "👤 Profile",
-            "📚 Courses",
-            "🏃 Activities",
-            "✨ Study Style"
+            ":material/account_circle: Profile",
+            ":material/book: Courses",
+            ":material/directions_walk: Activities",
+            ":material/wand_shine: Study Style"
         ]
     )
 
     with profile_tab:
         profile_values = render_setup_section(0, "settings")
-        if st.button("💾 Save profile", type="primary", key="save_profile_button"):
+        if st.button("Save profile", type="primary", key="save_profile_button"):
             if not profile_values["name"]:
                 st.warning("Please enter your name.")
             else:
@@ -2180,7 +2241,7 @@ with tab4:
 
     with courses_tab:
         course_values = render_setup_section(1, "settings")
-        if st.button("💾 Save courses", type="primary", key="save_courses_button"):
+        if st.button("Save courses", type="primary", key="save_courses_button"):
             commit_setup_section(1, course_values, "settings")
             save()
             st.session_state.flash = "Courses saved"
@@ -2188,7 +2249,7 @@ with tab4:
 
     with activities_tab:
         activity_values = render_setup_section(2, "settings")
-        if st.button("💾 Save activities", type="primary", key="save_activities_button"):
+        if st.button("Save activities", type="primary", key="save_activities_button"):
             commit_setup_section(2, activity_values, "settings")
             save()
             st.session_state.flash = "Activities saved"
@@ -2199,7 +2260,7 @@ with tab4:
         routine_values = render_setup_section(3, "settings")
         st.subheader("Study Preferences")
         preference_values = render_setup_section(4, "settings")
-        if st.button("💾 Save study style", type="primary", key="save_style_button"):
+        if st.button("Save study style", type="primary", key="save_style_button"):
             commit_setup_section(3, {**routine_values, **preference_values}, "settings")
             save()
             st.session_state.flash = "Study style saved"
@@ -2209,251 +2270,7 @@ with tab4:
 # FOOTER
 # ============================================================
 
-st.markdown("""
-<style>
-.studyflow-footer {
-    margin-top: 3.5rem;
-    font-family: 'Inter', sans-serif;
-    color: #F8FAFC;
-    overflow: hidden;
-    border-radius: 0;
-}
-
-.footer-main {
-    background: linear-gradient(115deg, #263b75 0%, #343b83 45%, #369b91 100%);
-    padding: 3rem 5%;
-    display: grid;
-    grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr;
-    gap: 2.5rem;
-}
-
-.footer-logo {
-    font-family: 'Sora', sans-serif;
-    font-size: 25px;
-    font-weight: 800;
-    letter-spacing: -0.8px;
-    margin-bottom: 1rem;
-}
-
-.footer-logo span {
-    color: #C4B5FD;
-}
-
-.footer-description {
-    font-size: 14px;
-    line-height: 1.8;
-    color: #E0E7FF;
-    max-width: 260px;
-    margin-bottom: 1.25rem;
-}
-
-.footer-contact {
-    font-size: 13px;
-    line-height: 2.2;
-    color: #F1F5F9;
-}
-
-.footer-contact a {
-    color: #FFFFFF;
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.footer-contact a:hover,
-.footer-links a:hover {
-    color: #C4B5FD;
-}
-
-.footer-heading {
-    font-size: 16px;
-    font-weight: 800;
-    margin-bottom: 1.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-.footer-heading::after {
-    content: "";
-    display: block;
-    width: 38px;
-    height: 3px;
-    background: #C4B5FD;
-    border-radius: 5px;
-    margin-top: 10px;
-}
-
-.footer-links {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.footer-links a {
-    color: #E0E7FF;
-    text-decoration: none;
-    font-size: 13px;
-    transition: color 0.2s ease;
-}
-
-.footer-socials {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 1rem;
-}
-
-.footer-socials a {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.95);
-    color: #3730A3;
-    font-size: 12px;
-    font-weight: 800;
-    text-decoration: none;
-    transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.footer-socials a:hover {
-    transform: translateY(-3px);
-    background: #DDD6FE;
-}
-
-.footer-bottom {
-    background: #17233E;
-    padding: 1.25rem 5%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 12px;
-    color: #94A3B8;
-}
-
-.footer-bottom strong {
-    color: #C4B5FD;
-    font-weight: 600;
-}
-
-.footer-bottom-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-}
-
-.footer-bottom-links a {
-    color: #94A3B8;
-    text-decoration: none;
-}
-
-.footer-bottom-links a:hover {
-    color: #FFFFFF;
-}
-
-@media (max-width: 850px) {
-    .footer-main {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding: 2.5rem 6%;
-        gap: 2.5rem 1.5rem;
-    }
-}
-
-@media (max-width: 500px) {
-    .footer-main {
-        grid-template-columns: 1fr;
-        gap: 2rem;
-    }
-
-    .footer-bottom {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-}
-</style>
-
-<div class="studyflow-footer">
-    <div class="footer-main">
-
-        <div class="footer-brand-column">
-            <div class="footer-logo">
-                StudyFlow<span> AI</span>
-            </div>
-
-            <div class="footer-description">
-                Your personal study sidekick. Stay organized, understand
-                difficult topics, and make every study session count.
-            </div>
-
-            <div class="footer-contact">
-                <a href="mailto:YOUR_EMAIL@example.com">
-                    YOUR_EMAIL@example.com
-                </a><br>
-                Built for students, by students.
-            </div>
-        </div>
-
-        <div>
-            <div class="footer-heading">About Us</div>
-            <div class="footer-links">
-                <a href="mailto:YOUR_EMAIL@example.com?subject=About%20StudyFlow">
-                    Our Mission
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Feedback">
-                    Send Feedback
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Contact">
-                    Contact Us
-                </a>
-            </div>
-        </div>
-
-        <div>
-            <div class="footer-heading">Resources</div>
-            <div class="footer-links">
-                <a href="https://studyflow.ai">
-                    StudyFlow AI
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Help">
-                    Help & Support
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Feature%20Request">
-                    Request a Feature
-                </a>
-            </div>
-        </div>
-
-        <div>
-            <div class="footer-heading">Follow Us</div>
-            <div class="footer-description">
-                Stay connected and follow the journey.
-            </div>
-
-            <div class="footer-socials">
-                <a href="YOUR_INSTAGRAM_URL" target="_blank"
-                   title="Instagram">IG</a>
-                <a href="YOUR_GITHUB_URL" target="_blank"
-                   title="GitHub">GH</a>
-                <a href="YOUR_LINKEDIN_URL" target="_blank"
-                   title="LinkedIn">in</a>
-            </div>
-        </div>
-
-    </div>
-
-    <div class="footer-bottom">
-        <div>
-            © 2026 <strong>StudyFlow AI</strong>. All rights reserved.
-        </div>
-
-        <div class="footer-bottom-links">
-            <a href="YOUR_PRIVACY_POLICY_URL">Privacy Policy</a>
-            <a href="YOUR_TERMS_URL">Terms of Use</a>
-            <span>Powered by <strong>Ollama</strong></span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.divider()
+st.caption(
+    "StudyFlow AI • Powered by Ollama"
+)
