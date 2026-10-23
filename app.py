@@ -1755,6 +1755,7 @@ with tab1:
                         "📇 Create Flashcards",
                         key=f"flashcards_create_{i}"
                     ):
+                        set_is_unique = True
                         st.session_state.flashcard_sets.append(
                             ask_ai(
                                 f"""
@@ -1775,6 +1776,15 @@ with tab1:
                         for set in st.session_state.flashcard_sets[0:-1]:
                             if set.get('assignment') == assignment.get('name'):
                                 st.session_state.flashcard_sets[-1].pop()
+                                set_is_unique = False
+                        if set_is_unique:
+                            st.success(
+                                f"Flashcards for {assignment.get('name')} created!"
+                            )
+                            set = list(st.session_state.flashcard_sets[-1].items())
+                            set.insert(1, ('priority', assignment.get('priority')))
+                            st.session_state.flashcard_sets[-1] = dict(set)
+                            
                                 
 
                 with col2:
@@ -2018,8 +2028,8 @@ with tab3:
 # FLASHCARDS TAB
 # ============================================================
 
-if 'card_idx' not in st.session_state:
-    st.session_state.card_idx = []
+if 'card_idxs' not in st.session_state:
+    st.session_state.card_idxs = []
 
 with tab4:
     st.header("📇 Flashcards")
@@ -2030,19 +2040,26 @@ with tab4:
     else:
         with st.expander(
             st.session_state.flashcard_sets[0].get('assignment')
-            
-        ):
+            ):
             try:
-                side + 1
+                side = st.session_state.card_idxs[0][2] + 0
             except:
                 side = 0
             try:
-                card_idx = st.session_state.card_idx[0][0]
+                card_idx = st.session_state.card_idxs[0][1] + 0
             except:
                 card_idx = 0
             side = fcard.draw(side, list(st.session_state.flashcard_sets[0])[card_idx + 2], list(st.session_state.flashcard_sets[0].values())[card_idx + 2])
-        if len(st.session_state.card_idx) >= 0:
-                st.session_state.card_idx.insert(0, [card_idx, side])
+            if len(st.session_state.card_idxs) == 0:
+                st.session_state.card_idxs.insert(0, [0, card_idx, side])
+            elif len(st.session_state.card_idxs) > 0:
+                st.session_state.card_idxs[0] = [0, card_idx, side]
+            else:
+                for i in range(0 - len(st.session_state.card_idxs)):
+                    st.session_state.card_idxs.insert(i, None, None, None)
+                st.session_state.card_idxs[0] = [0, card_idx, side]
+            st.json(st.session_state.card_idxs)
+            st.json(st.session_state.flashcard_sets[0])
 
 
 # ============================================================
