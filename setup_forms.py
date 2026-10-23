@@ -409,7 +409,7 @@ def courses_editor(prefix, courses, grade=None):
         args=(prefix,)
     )
 
-    st.caption("Not on the list? Use ➕ Add a course below and type it in.")
+    st.caption("Not on the list? Use :material/add: Add a course below and type it in.")
 
     if draft:
         st.caption("For each course, pick A day, B day, or both if it meets every day.")
@@ -443,7 +443,7 @@ def courses_editor(prefix, courses, grade=None):
 
             with delete_column:
                 st.button(
-                    "🗑️",
+                    ":material/delete:",
                     key=f"{base}_delete",
                     help="Remove this course",
                     on_click=_remove,
@@ -466,7 +466,7 @@ def courses_editor(prefix, courses, grade=None):
         })
 
     st.button(
-        "➕ Add a course",
+        ":material/add: Add a course",
         key=f"{prefix}_courses_add",
         on_click=_add_blank,
         args=(prefix, "courses")
@@ -507,7 +507,7 @@ def activities_editor(prefix, activities):
 
             with delete_column:
                 st.button(
-                    "🗑️",
+                    ":material/delete:",
                     key=f"{base}_delete",
                     help="Remove this activity",
                     on_click=_remove,
@@ -550,9 +550,9 @@ def activities_editor(prefix, activities):
             )
 
             if name.strip() and start and end and end <= start:
-                st.caption("⚠️ The end time is before the start time.")
+                st.caption(":material/warning: The end time is before the start time.")
             elif name.strip() and not days:
-                st.caption("⚠️ Pick at least one day so your plan can work around it.")
+                st.caption(":material/warning: Pick at least one day so your plan can work around it.")
 
         updated.append({
             "id": activity_id,
@@ -564,7 +564,7 @@ def activities_editor(prefix, activities):
         })
 
     st.button(
-        "➕ Add an activity",
+        ":material/add: Add an activity",
         key=f"{prefix}_activities_add",
         on_click=_add_blank,
         args=(prefix, "activities")
@@ -603,7 +603,7 @@ def routine_form(prefix, study_style):
         )
 
     if homework and bed and wake and wake < bed <= homework:
-        st.caption("⚠️ Homework starts after bedtime, so there's no time left to study on school days.")
+        st.caption(":material/warning: Homework starts after bedtime, so there's no time left to study on school days.")
 
     weekends = st.toggle("Use weekends for study", value=style["weekends"], key=f"{prefix}_routine_weekends")
     lighter = st.toggle("Lighter Fridays", value=style["lighter_fridays"], key=f"{prefix}_routine_fridays")

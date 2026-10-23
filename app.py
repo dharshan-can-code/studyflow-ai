@@ -430,6 +430,16 @@ div[data-baseweb="select"] {
     margin-top: 4px;
 }
 
+.greeting-icon {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal;
+    font-size: 26px;
+    line-height: 1;
+    vertical-align: -4px;
+    color: #A78BFA;
+    font-feature-settings: 'liga';
+}
+
 .greeting-date {
     font-family: 'Inter', sans-serif;
     color: #94A3B8;
@@ -471,6 +481,10 @@ div[data-baseweb="select"] {
 [data-testid="stToast"] {
     background-color: #1E293B !important;
     border: 1px solid #334155 !important;
+}
+
+[data-testid="stToast"] [data-testid="stIconMaterial"] {
+    color: #A78BFA !important;
 }
 
 .stButton button[kind="tertiary"] {
@@ -871,7 +885,7 @@ def save():
                 "Run supabase/add_setup.sql in the Supabase SQL Editor."
             )
         else:
-            st.toast("Couldn't save your latest changes. Check your connection.", icon="⚠️")
+            st.toast("Couldn't save your latest changes. Check your connection.", icon=":material/warning:")
 
 
 def delete_my_data():
@@ -1258,7 +1272,7 @@ def plan_day_label(value):
 
 def show_calendar_export(sessions, zone_name):
     with st.container(border=True):
-        st.subheader("📤 Export to your calendar")
+        st.subheader(":material/ios_share: Export to your calendar")
 
         include_due = st.toggle(
             "Include assignment due dates",
@@ -1282,7 +1296,7 @@ def show_calendar_export(sessions, zone_name):
         st.caption(f"{summary}, each study session with a 10-minute reminder.")
 
         st.download_button(
-            "📅 Download calendar file (.ics)",
+            ":material/download: Download calendar file (.ics)",
             data=calendar_export.build_ics(
                 sessions,
                 st.session_state.assignments,
@@ -1299,7 +1313,7 @@ def show_calendar_export(sessions, zone_name):
         with st.expander("How to add it to Google Calendar"):
             st.markdown(
                 "1. Open **calendar.google.com** on a computer.\n"
-                "2. Click **⚙️ Settings**, then **Import & export**.\n"
+                "2. Click **:material/settings: Settings**, then **Import & export**.\n"
                 "3. Choose the file you downloaded and click **Import**.\n\n"
                 "Tip: make a new calendar called *StudyFlow* first and import into it, "
                 "so you can hide or delete the whole plan in one click. "
@@ -1543,7 +1557,7 @@ def chatbot(message):
 
 
 def render_chat_message(message):
-    avatar = LOGO_PATH if message["role"] == "assistant" else "🙂"
+    avatar = LOGO_PATH if message["role"] == "assistant" else ":material/person:"
 
     with st.chat_message(message["role"], avatar=avatar):
         if message.get("content"):
@@ -1553,10 +1567,10 @@ def render_chat_message(message):
             try:
                 st.image(uploads.decode_image(image_data), width=400)
             except Exception:
-                st.caption("📷 This image couldn't be displayed.")
+                st.caption(":material/image_not_supported: This image couldn't be displayed.")
 
         if message.get("had_image") and not message.get("images"):
-            st.caption("📷 An image was attached here (images aren't saved).")
+            st.caption(":material/photo_camera: An image was attached here (images aren't saved).")
 
 
 # ============================================================
@@ -1634,7 +1648,7 @@ def show_setup_wizard():
 
             with back_column:
                 go_back = st.button(
-                    "‹ Back",
+                    ":material/arrow_back: Back",
                     disabled=step == 0,
                     use_container_width=True,
                     key="wizard_back"
@@ -1642,7 +1656,7 @@ def show_setup_wizard():
 
             with next_column:
                 go_next = st.button(
-                    "Finish ✓" if last_step else "Continue ›",
+                    ":material/check: Finish" if last_step else "Continue :material/arrow_forward:",
                     type="primary",
                     use_container_width=True,
                     key="wizard_next"
@@ -1700,36 +1714,36 @@ with st.sidebar:
     )
 
     if SUPABASE is None:
-        st.caption("💾 Saving is off because no database is connected.")
+        st.caption("Saving is off because no database is connected.")
     elif signed_in_with_google():
         st.caption(f"Signed in as **{st.user.get('name') or st.user.get('email')}**")
         if st.button("Sign out"):
             st.logout()
     else:
-        st.caption("💾 Your plan is saved on this browser only.")
+        st.caption("Your plan is saved on this browser only.")
         if google_login_available() and st.button("Sign in with Google"):
             st.login()
 
     st.divider()
-    st.subheader("📋 Your Setup")
+    st.subheader(":material/checklist: Your Setup")
 
     course_count = len(setup.course_names(st.session_state.courses))
     activity_count = len([a for a in st.session_state.activities if a.get("name")])
     routine = st.session_state.study_style
 
     st.caption(
-        f"📚 {course_count} course{'s' if course_count != 1 else ''} · "
-        f"🏃 {activity_count} activit{'ies' if activity_count != 1 else 'y'}"
+        f":material/book: {course_count} course{'s' if course_count != 1 else ''} · "
+        f":material/directions_walk: {activity_count} activit{'ies' if activity_count != 1 else 'y'}"
     )
     st.caption(
-        f"⏰ Homework from {setup.pretty_time(routine.get('homework_start'))}, "
+        f":material/schedule: Homework from {setup.pretty_time(routine.get('homework_start'))}, "
         f"bedtime {setup.pretty_time(routine.get('bed'))}"
     )
-    st.caption("Change these anytime in the ⚙️ Settings tab.")
+    st.caption("Change these anytime in the :material/settings: Settings tab.")
 
     if SUPABASE is not None and st.session_state.get("student_id"):
         st.divider()
-        with st.expander("🔒 Your data"):
+        with st.expander(":material/lock_person: Your data"):
             st.caption(
                 "StudyFlow saves your profile, courses, activities, routine, "
                 "assignments, study plan, and chat messages so they're here "
@@ -1770,13 +1784,13 @@ if uses_ab_calendar() and ab_calendar.in_school_year(now.date()) and now.weekday
 first_name = html.escape((st.session_state.profile.get("name") or "").split(" ")[0])
 
 st.markdown(
-    f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} 👋</div>'
+    f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} <span class="greeting-icon">waving_hand</span></div>'
     f'<div class="greeting-date">{now:%A, %B} {now.day}{today_label}</div>',
     unsafe_allow_html=True
 )
 
 if "flash" in st.session_state:
-    st.toast(st.session_state.pop("flash"), icon="✅")
+    st.toast(st.session_state.pop("flash"), icon=":material/check_circle:")
 
 st.divider()
 
@@ -1786,10 +1800,10 @@ st.divider()
 
 tab1, tab2, tab3, tab4 = st.tabs(
     [
-        "📝 Assignments",
-        "📅 Study Plan",
-        "💬 AI Assistant",
-        "⚙️ Settings"
+        ":material/assignment_add: Assignments",
+        ":material/calendar_clock: Study Plan",
+        ":material/chat_bubble: AI Assistant",
+        ":material/settings: Settings"
     ]
 )
 
@@ -1798,7 +1812,7 @@ tab1, tab2, tab3, tab4 = st.tabs(
 # ============================================================
 
 with tab1:
-    st.header("📝 Add Assignments")
+    st.header(":material/edit_note: Add Assignments")
     st.caption(
         "Describe your work, upload a photo or PDF of an assignment sheet, "
         "syllabus, or planner page, or do both. StudyFlow will pull out the "
@@ -1820,7 +1834,7 @@ with tab1:
     )
 
     if st.button(
-        "🤖 Analyze",
+        "Analyze",
         use_container_width=True
     ):
         if not assignment_input.strip() and uploaded_file is None:
@@ -1830,7 +1844,7 @@ with tab1:
         else:
             found = None
             try:
-                with st.spinner("🤖 Analyzing..."):
+                with st.spinner(":material/smart_toy: Analyzing..."):
                     found = extract_assignments(
                         assignment_input.strip(),
                         uploaded_file
@@ -1889,7 +1903,7 @@ with tab1:
         add_column, discard_column = st.columns(2)
 
         with add_column:
-            if st.button("✅ Add Selected", type="primary", use_container_width=True):
+            if st.button(":material/check: Add Selected", type="primary", use_container_width=True):
                 chosen = [
                     normalize_assignment({**row, "due_date": due_date_text(row.get("due_date"))})
                     for row in edited
@@ -1913,7 +1927,7 @@ with tab1:
                 st.rerun()
 
     st.divider()
-    st.header("📚 Current Assignments")
+    st.header("Current Assignments")
     if not st.session_state.assignments:
         st.info(
             "No assignments yet. Add one above!"
@@ -1949,16 +1963,16 @@ with tab1:
 
                 with col2:
                     st.write(
-                        f"📚 **{assignment.get('course', 'General')}**"
+                        f":material/assignment: **{assignment.get('course', 'General')}**"
                     )
                     due_label = (
                         f"{assignment_type.title()} on" if is_prep else "Due"
                     )
                     st.write(
-                        f"📅 {due_label}: "
+                        f":material/event_note: {due_label}: "
                         f"{pretty_due_date(assignment.get('due_date'))}"
                     )
-                    time_label = "✍️ Prep time" if is_prep else "⏱️ Work time"
+                    time_label = ":material/local_library: Prep time" if is_prep else ":material/timer: Work time"
                     st.write(
                         f"{time_label}: "
                         f"{assignment.get('estimated_minutes', 60)} min"
@@ -1976,7 +1990,7 @@ with tab1:
                     )
 
                     if st.button(
-                        "🗑️",
+                        ":material/delete:",
                         key=f"delete_{i}"
                     ):
                         st.session_state.assignments.pop(
@@ -1990,9 +2004,9 @@ with tab1:
 # ============================================================
 
 with tab2:
-    st.header("📅 Your Study Plan")
+    st.header(":material/calendar_month: Your Study Plan")
     if st.button(
-        "✨ Generate Study Plan",
+        ":material/auto_awesome: Generate Study Plan",
         use_container_width=True
     ):
         if not st.session_state.assignments:
@@ -2001,7 +2015,7 @@ with tab2:
             )
         else:
             with st.spinner(
-                "🤖 Building your personalized study plan..."
+                ":material/smart_toy: Building your personalized study plan..."
             ):
                 plan = generate_plan()
             if plan:
@@ -2022,7 +2036,7 @@ with tab2:
             st.warning(
                 f"Couldn't fit {item.get('minutes', '')} min of **{item.get('assignment', '')}**: "
                 f"{item.get('reason', '')}. Try raising your max study per day "
-                "or turning on weekend studying in ⚙️ Settings."
+                "or turning on weekend studying in :material/settings: Settings."
             )
 
         if not sessions:
@@ -2037,22 +2051,22 @@ with tab2:
                 )
                 with col1:
                     st.write(
-                        f"📅 **{session.get('date', '')}**"
+                        f":material/event: **{session.get('date', '')}**"
                     )
                     day_label = plan_day_label(session.get("date"))
                     if day_label:
                         st.caption(day_label)
                     st.write(
-                        f"⏰ "
+                        f":material/schedule: "
                         f"{setup.pretty_time(session.get('start_time'))} - "
                         f"{setup.pretty_time(session.get('end_time'))}"
                     )
                 with col2:
                     st.write(
-                        f"📚 **{session.get('course', '')}**"
+                        f":material/menu_book: **{session.get('course', '')}**"
                     )
                     st.write(
-                        f"📝 {session.get('assignment', '')}"
+                        f":material/assignment: {session.get('assignment', '')}"
                     )
 
                 with col3:
@@ -2065,12 +2079,12 @@ with tab2:
                     )
                     google_link = calendar_export.google_calendar_link(session, zone_name)
                     if google_link:
-                        st.markdown(f"[➕ Add to Google Calendar]({google_link})")
+                        st.markdown(f":material/calendar_add_on: [Add to Google Calendar]({google_link})")
 
         show_calendar_export(sessions, zone_name)
 
         with st.expander(
-            "📄 View Raw Study Plan"
+            ":material/data_object: View Raw Study Plan"
         ):
             st.json(
                 st.session_state.study_plan
@@ -2088,14 +2102,14 @@ with tab2:
 
 with tab3:
     st.markdown('<div class="chat-kicker">Your study sidekick</div>', unsafe_allow_html=True)
-    st.header("💬 StudyFlow AI")
+    st.header(":material/forum: StudyFlow AI")
     st.markdown(
         '<p class="chat-subtitle">Ask about a tough topic, plan your week, '
         'or attach a photo of a problem for a step-by-step explanation.</p>',
         unsafe_allow_html=True
     )
 
-    if st.session_state.messages and st.button("🗑️ Clear chat"):
+    if st.session_state.messages and st.button(":material/delete: Clear chat"):
         st.session_state.messages = []
         save()
         st.rerun()
@@ -2199,7 +2213,7 @@ with tab3:
 # ============================================================
 
 with tab4:
-    st.header("⚙️ Settings")
+    st.header(":material/settings: Settings")
     st.markdown(
         '<p class="chat-subtitle">Edit your profile, courses, and study preferences.</p>',
         unsafe_allow_html=True
@@ -2207,16 +2221,16 @@ with tab4:
 
     profile_tab, courses_tab, activities_tab, style_tab = st.tabs(
         [
-            "👤 Profile",
-            "📚 Courses",
-            "🏃 Activities",
-            "✨ Study Style"
+            ":material/account_circle: Profile",
+            ":material/book: Courses",
+            ":material/directions_walk: Activities",
+            ":material/wand_shine: Study Style"
         ]
     )
 
     with profile_tab:
         profile_values = render_setup_section(0, "settings")
-        if st.button("💾 Save profile", type="primary", key="save_profile_button"):
+        if st.button("Save profile", type="primary", key="save_profile_button"):
             if not profile_values["name"]:
                 st.warning("Please enter your name.")
             else:
@@ -2227,7 +2241,7 @@ with tab4:
 
     with courses_tab:
         course_values = render_setup_section(1, "settings")
-        if st.button("💾 Save courses", type="primary", key="save_courses_button"):
+        if st.button("Save courses", type="primary", key="save_courses_button"):
             commit_setup_section(1, course_values, "settings")
             save()
             st.session_state.flash = "Courses saved"
@@ -2235,7 +2249,7 @@ with tab4:
 
     with activities_tab:
         activity_values = render_setup_section(2, "settings")
-        if st.button("💾 Save activities", type="primary", key="save_activities_button"):
+        if st.button("Save activities", type="primary", key="save_activities_button"):
             commit_setup_section(2, activity_values, "settings")
             save()
             st.session_state.flash = "Activities saved"
@@ -2246,7 +2260,7 @@ with tab4:
         routine_values = render_setup_section(3, "settings")
         st.subheader("Study Preferences")
         preference_values = render_setup_section(4, "settings")
-        if st.button("💾 Save study style", type="primary", key="save_style_button"):
+        if st.button("Save study style", type="primary", key="save_style_button"):
             commit_setup_section(3, {**routine_values, **preference_values}, "settings")
             save()
             st.session_state.flash = "Study style saved"
@@ -2256,251 +2270,7 @@ with tab4:
 # FOOTER
 # ============================================================
 
-st.markdown("""
-<style>
-.studyflow-footer {
-    margin-top: 3.5rem;
-    font-family: 'Inter', sans-serif;
-    color: #F8FAFC;
-    overflow: hidden;
-    border-radius: 0;
-}
-
-.footer-main {
-    background: linear-gradient(115deg, #263b75 0%, #343b83 45%, #369b91 100%);
-    padding: 3rem 5%;
-    display: grid;
-    grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr;
-    gap: 2.5rem;
-}
-
-.footer-logo {
-    font-family: 'Sora', sans-serif;
-    font-size: 25px;
-    font-weight: 800;
-    letter-spacing: -0.8px;
-    margin-bottom: 1rem;
-}
-
-.footer-logo span {
-    color: #C4B5FD;
-}
-
-.footer-description {
-    font-size: 14px;
-    line-height: 1.8;
-    color: #E0E7FF;
-    max-width: 260px;
-    margin-bottom: 1.25rem;
-}
-
-.footer-contact {
-    font-size: 13px;
-    line-height: 2.2;
-    color: #F1F5F9;
-}
-
-.footer-contact a {
-    color: #FFFFFF;
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.footer-contact a:hover,
-.footer-links a:hover {
-    color: #C4B5FD;
-}
-
-.footer-heading {
-    font-size: 16px;
-    font-weight: 800;
-    margin-bottom: 1.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-.footer-heading::after {
-    content: "";
-    display: block;
-    width: 38px;
-    height: 3px;
-    background: #C4B5FD;
-    border-radius: 5px;
-    margin-top: 10px;
-}
-
-.footer-links {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.footer-links a {
-    color: #E0E7FF;
-    text-decoration: none;
-    font-size: 13px;
-    transition: color 0.2s ease;
-}
-
-.footer-socials {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 1rem;
-}
-
-.footer-socials a {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.95);
-    color: #3730A3;
-    font-size: 12px;
-    font-weight: 800;
-    text-decoration: none;
-    transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.footer-socials a:hover {
-    transform: translateY(-3px);
-    background: #DDD6FE;
-}
-
-.footer-bottom {
-    background: #17233E;
-    padding: 1.25rem 5%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 12px;
-    color: #94A3B8;
-}
-
-.footer-bottom strong {
-    color: #C4B5FD;
-    font-weight: 600;
-}
-
-.footer-bottom-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-}
-
-.footer-bottom-links a {
-    color: #94A3B8;
-    text-decoration: none;
-}
-
-.footer-bottom-links a:hover {
-    color: #FFFFFF;
-}
-
-@media (max-width: 850px) {
-    .footer-main {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding: 2.5rem 6%;
-        gap: 2.5rem 1.5rem;
-    }
-}
-
-@media (max-width: 500px) {
-    .footer-main {
-        grid-template-columns: 1fr;
-        gap: 2rem;
-    }
-
-    .footer-bottom {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-}
-</style>
-
-<div class="studyflow-footer">
-    <div class="footer-main">
-
-        <div class="footer-brand-column">
-            <div class="footer-logo">
-                StudyFlow<span> AI</span>
-            </div>
-
-            <div class="footer-description">
-                Your personal study sidekick. Stay organized, understand
-                difficult topics, and make every study session count.
-            </div>
-
-            <div class="footer-contact">
-                <a href="mailto:YOUR_EMAIL@example.com">
-                    YOUR_EMAIL@example.com
-                </a><br>
-                Built for students, by students.
-            </div>
-        </div>
-
-        <div>
-            <div class="footer-heading">About Us</div>
-            <div class="footer-links">
-                <a href="mailto:YOUR_EMAIL@example.com?subject=About%20StudyFlow">
-                    Our Mission
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Feedback">
-                    Send Feedback
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Contact">
-                    Contact Us
-                </a>
-            </div>
-        </div>
-
-        <div>
-            <div class="footer-heading">Resources</div>
-            <div class="footer-links">
-                <a href="https://studyflow.ai">
-                    StudyFlow AI
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Help">
-                    Help & Support
-                </a>
-                <a href="mailto:YOUR_EMAIL@example.com?subject=Feature%20Request">
-                    Request a Feature
-                </a>
-            </div>
-        </div>
-
-        <div>
-            <div class="footer-heading">Follow Us</div>
-            <div class="footer-description">
-                Stay connected and follow the journey.
-            </div>
-
-            <div class="footer-socials">
-                <a href="YOUR_INSTAGRAM_URL" target="_blank"
-                   title="Instagram">IG</a>
-                <a href="YOUR_GITHUB_URL" target="_blank"
-                   title="GitHub">GH</a>
-                <a href="YOUR_LINKEDIN_URL" target="_blank"
-                   title="LinkedIn">in</a>
-            </div>
-        </div>
-
-    </div>
-
-    <div class="footer-bottom">
-        <div>
-            © 2026 <strong>StudyFlow AI</strong>. All rights reserved.
-        </div>
-
-        <div class="footer-bottom-links">
-            <a href="YOUR_PRIVACY_POLICY_URL">Privacy Policy</a>
-            <a href="YOUR_TERMS_URL">Terms of Use</a>
-            <span>Powered by <strong>Ollama</strong></span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.divider()
+st.caption(
+    "StudyFlow AI • Powered by Ollama"
+)
