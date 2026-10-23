@@ -2028,6 +2028,23 @@ with tab3:
 # FLASHCARDS TAB
 # ============================================================
 
+st.html('''<style>
+
+.st-key-flashcard {
+    border: 0.5px solid #161C2F !important;
+    border-radius: 8px !important;
+    height: 500px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+    .st-key-flashcard span {
+    font-size: 24pt !important;
+}
+
+</style>''')
+
 if 'card_idxs' not in st.session_state:
     st.session_state.card_idxs = []
 
@@ -2051,15 +2068,20 @@ with tab4:
                 card_idx = 0
             side = fcard.draw(side, list(st.session_state.flashcard_sets[0])[card_idx + 2], list(st.session_state.flashcard_sets[0].values())[card_idx + 2])
             if len(st.session_state.card_idxs) == 0:
+                prev_side = st.session_state.card_idxs[0][2]
                 st.session_state.card_idxs.insert(0, [0, card_idx, side])
             elif len(st.session_state.card_idxs) > 0:
+                prev_side = st.session_state.card_idxs[0][2]
                 st.session_state.card_idxs[0] = [0, card_idx, side]
             else:
                 for i in range(0 - len(st.session_state.card_idxs)):
                     st.session_state.card_idxs.insert(i, None, None, None)
+                prev_side = st.session_state.card_idxs[0][2]
                 st.session_state.card_idxs[0] = [0, card_idx, side]
             st.json(st.session_state.card_idxs)
             st.json(st.session_state.flashcard_sets[0])
+            if side != prev_side:
+                st.rerun()
 
 
 # ============================================================
