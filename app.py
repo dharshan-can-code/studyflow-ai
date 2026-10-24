@@ -1,4 +1,5 @@
 import streamlit as st
+import altair as alt
 import html
 import json
 import re
@@ -11,6 +12,7 @@ import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 
 import ab_calendar
+import analytics
 import calendar_export
 import scheduler
 import setup_forms as setup
@@ -472,6 +474,116 @@ div[data-baseweb="select"] {
     font-weight: 600;
     color: #F8FAFC;
     margin-bottom: 0.5rem;
+}
+
+
+/* ============================================================
+   ANALYTICS
+   ============================================================ */
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin: 4px 0 20px;
+}
+
+@media (max-width: 1100px) {
+    .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.stat-tile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    padding: 18px;
+    background-color: #1E293B;
+    border-radius: 12px;
+}
+
+.stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    color: #FFFFFF;
+    font-family: 'Material Symbols Rounded';
+    font-size: 24px;
+}
+
+.stat-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #94A3B8;
+}
+
+.stat-value {
+    font-family: 'Sora', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: #F8FAFC;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-family: 'Sora', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: #F8FAFC;
+}
+
+.card-icon {
+    font-family: 'Material Symbols Rounded';
+    font-size: 20px;
+    color: #A78BFA;
+}
+
+.load-row {
+    margin-bottom: 14px;
+}
+
+.load-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #CBD5E1;
+}
+
+.load-count {
+    color: #94A3B8;
+    font-variant-numeric: tabular-nums;
+}
+
+.load-track {
+    height: 6px;
+    overflow: hidden;
+    background-color: #334155;
+    border-radius: 999px;
+}
+
+.load-fill {
+    height: 100%;
+    background-color: #8B5CF6;
+    border-radius: 999px;
+}
+
+.load-empty {
+    color: #94A3B8 !important;
 }
 
 [data-testid="stSidebar"] [data-testid="stIconMaterial"] {
@@ -1132,6 +1244,116 @@ ASSIGNMENT_TYPES = [
     "other"
 ]
 
+COURSE_RULE = (
+    "The course must be one of the student's courses, written exactly as it appears in their course list. "
+    "Pick the closest one even when the student uses a nickname or abbreviation (for example \"precalc\" "
+    "means their Precalculus course, \"bio\" their Biology course, and \"english essay\" their English course). "
+    "Use \"General\" only when the item clearly doesn't belong to any of their courses."
+)
+
+COURSE_FILLER_WORDS = {
+    "ap", "ib", "honors", "hn", "h", "aa", "gt", "de", "dual", "enrollment", "advanced",
+    "intro", "introduction", "to", "the", "and", "of", "in", "&", "class", "course"
+}
+
+COURSE_NICKNAMES = {
+    "apush": "united states history",
+    "ush": "united states history",
+    "bio": "biology",
+    "alg": "algebra",
+    "eng": "english",
+    "sci": "science",
+    "euro": "european",
+    "apes": "environmental science",
+    "csa": "computer science",
+    "csp": "computer science",
+    "cs": "computer science",
+    "compsci": "computer science",
+    "lang": "language",
+    "lit": "literature",
+    "gov": "government",
+    "stats": "statistics",
+    "trig": "trigonometry",
+    "pe": "physical education",
+    "gym": "physical education",
+    "ela": "english"
+}
+
+
+def _course_words(text):
+    words = re.findall(r"[a-z]+|\d+", str(text or "").lower())
+    expanded = []
+    for word in words:
+        expanded.extend(COURSE_NICKNAMES.get(word, word).split())
+    return expanded
+
+
+def match_course(text, names):
+    """Return the student's course that `text` refers to, or None if it's unclear."""
+    if not text:
+        return None
+    for name in names:
+        if str(text).strip().casefold() == name.casefold():
+            return name
+
+    text_words = [word for word in _course_words(text) if word not in COURSE_FILLER_WORDS]
+    scores = {}
+    for name in names:
+        course_words = [
+            word for word in _course_words(name)
+            if word not in COURSE_FILLER_WORDS and not word.isdigit()
+        ]
+        score = 0
+        for course_word in course_words:
+            # Whole words match at any length; prefixes ("precalc", "chem") need 4+ letters.
+            if any(
+                word == course_word
+                or (min(len(word), len(course_word)) >= 4
+                    and (course_word.startswith(word) or word.startswith(course_word)))
+                for word in text_words
+            ):
+                score += 1
+        if score:
+            scores[name] = score
+
+    if not scores:
+        return None
+    best = max(scores.values())
+    winners = [name for name, score in scores.items() if score == best]
+    return winners[0] if len(winners) == 1 else None
+
+
+def guess_course(assignment):
+    names = setup.course_names(st.session_state.courses)
+    course = assignment.get("course") or ""
+    if course in names:
+        return course
+    for text in (course, assignment.get("name"), assignment.get("description")):
+        match = match_course(text, names)
+        if match:
+            return match
+    return course or "General"
+
+
+def fix_general_courses():
+    # One-time repair for assignments saved before course matching existed.
+    if st.session_state.profile.get("courses_matched"):
+        return
+
+    fixed = {}
+    for assignment in st.session_state.assignments:
+        if assignment.get("course") in ("", "General"):
+            assignment["course"] = guess_course({**assignment, "course": ""})
+            fixed[assignment.get("name")] = assignment["course"]
+
+    for session in plan_sessions():
+        if session.get("course") in ("", "General") and fixed.get(session.get("assignment"), "General") != "General":
+            session["course"] = fixed[session["assignment"]]
+
+    st.session_state.profile["courses_matched"] = True
+    save()
+
+
 ASSIGNMENT_NAME_RULE = (
     "The name is the full, specific name of the item: the course's exact name from the student's "
     "course list, then any unit, chapter, or topic the student or the file gave, then the type. "
@@ -1349,7 +1571,7 @@ Rules:
 - Only include items the student described or that actually appear in the file. Never invent items.
 - If the student wrote a description and uploaded a file, use the description to fill in or
   correct details from the file (for example, which course it is for or when it is due).
-- Match the course to one of the student's courses when it clearly fits, using that course's exact name.
+- {COURSE_RULE}
 - {ASSIGNMENT_NAME_RULE}
 - Use YYYY-MM-DD for the due date. Convert relative dates such as "next Tuesday" using the calendar above.
 - If an item has no due date, use "Not set".
@@ -1381,7 +1603,10 @@ Rules:
     if not isinstance(found, list):
         return []
 
-    return [normalize_assignment(item) for item in found if isinstance(item, dict)]
+    found = [normalize_assignment(item) for item in found if isinstance(item, dict)]
+    for item in found:
+        item["course"] = guess_course(item)
+    return found
 
 # ============================================================
 # STUDY PLAN GENERATOR
@@ -1523,12 +1748,38 @@ Return ONLY valid JSON in exactly this format:
     return tasks
 
 
+def plan_sessions():
+    plan = st.session_state.study_plan or {}
+    return [session for session in plan.get("study_sessions", []) if isinstance(session, dict)]
+
+
+def set_session_done(index, key):
+    session = st.session_state.study_plan["study_sessions"][index]
+    session["done"] = st.session_state[key]
+    session["done_on"] = student_now().date().isoformat() if session["done"] else None
+    save()
+
+
 def generate_plan():
     if not st.session_state.assignments:
         return None
 
+    # Keep checked-off sessions and only schedule the work that's left.
+    finished = [session for session in plan_sessions() if session.get("done")]
+    finished_minutes = {}
+    for session in finished:
+        match = (session.get("assignment"), session.get("course"))
+        finished_minutes[match] = finished_minutes.get(match, 0) + _whole_number(session.get("minutes"), 0)
+
+    remaining = []
+    for assignment in st.session_state.assignments:
+        match = (assignment.get("name"), assignment.get("course") or "")
+        left = _whole_number(assignment.get("estimated_minutes"), 60) - finished_minutes.get(match, 0)
+        if left > 0:
+            remaining.append({**assignment, "estimated_minutes": left})
+
     sessions, unscheduled = scheduler.build_plan(
-        st.session_state.assignments,
+        remaining,
         setup.complete_study_style(st.session_state.study_style),
         setup.normalize_activities(st.session_state.activities),
         student_now().replace(tzinfo=None),
@@ -1539,10 +1790,83 @@ def generate_plan():
     for number, session in enumerate(sessions, start=1):
         session["task"] = tasks.get(number) or scheduler.default_task(session)
 
+    all_sessions = finished + [scheduler.public_session(session) for session in sessions]
+    all_sessions.sort(key=lambda session: (session.get("date", ""), session.get("start_time", "")))
+
     return {
-        "study_sessions": [scheduler.public_session(session) for session in sessions],
-        "unscheduled": unscheduled
+        "study_sessions": all_sessions,
+        "unscheduled": unscheduled,
+        "created": student_now().isoformat()
     }
+
+
+# ============================================================
+# ANALYTICS HELPERS
+# ============================================================
+
+CARD_HEIGHT = 340
+
+
+def stat_tiles_html(tiles):
+    cards = "".join(
+        f'<div class="stat-tile"><div class="stat-icon" style="background-color:{color}">{icon}</div>'
+        f'<div style="min-width:0"><div class="stat-label">{html.escape(label)}</div>'
+        f'<div class="stat-value">{html.escape(value)}</div></div></div>'
+        for icon, color, label, value in tiles
+    )
+    return f'<div class="stat-grid">{cards}</div>'
+
+
+def card_title_html(icon, title):
+    return f'<div class="card-title"><span class="card-icon">{icon}</span>{html.escape(title)}</div>'
+
+
+def course_load_html(rows):
+    if not rows:
+        return '<p class="load-empty">Add courses in Settings to see your course load.</p>'
+
+    parts = []
+    for row in rows:
+        share = row["done"] / row["total"] if row["total"] else 0
+        parts.append(
+            f'<div class="load-row"><div class="load-head"><span>{html.escape(row["course"])}</span>'
+            f'<span class="load-count">{row["done"]}/{row["total"]}</span></div>'
+            f'<div class="load-track"><div class="load-fill" style="width:{share * 100:.0f}%"></div></div></div>'
+        )
+    return "".join(parts)
+
+
+def styled_chart(chart):
+    return (
+        chart.properties(height=230)
+        .configure(background="transparent", font="Inter")
+        .configure_axis(
+            labelColor="#94A3B8",
+            labelFontSize=12,
+            gridColor="#334155",
+            gridDash=[2, 4],
+            domainColor="#475569",
+            tickColor="#475569"
+        )
+        .configure_view(stroke=None)
+    )
+
+
+def horizontal_bars(values, label_field, value_field, color):
+    most = max((value[value_field] for value in values), default=0)
+    base = alt.Chart(alt.Data(values=values)).encode(
+        y=alt.Y(f"{label_field}:N", sort=None, title=None, axis=alt.Axis(labelLimit=170, ticks=False)),
+        x=alt.X(
+            f"{value_field}:Q",
+            title=None,
+            scale=alt.Scale(domain=[0, max(1, most) * 1.15]),
+            axis=alt.Axis(tickMinStep=1, format="d")
+        ),
+        tooltip=[alt.Tooltip(f"{label_field}:N"), alt.Tooltip(f"{value_field}:Q")]
+    )
+    bars = base.mark_bar(color=color, cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height={"band": 0.6})
+    labels = base.mark_text(align="left", dx=6, color="#CBD5E1", fontSize=12).encode(text=f"{value_field}:Q")
+    return bars + labels
 
 
 # ============================================================
@@ -1589,7 +1913,7 @@ in exactly this format:
 - Difficulty must be 1-5. Priority must be Low, Medium, or High.
 - Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
 - {ASSIGNMENT_NAME_RULE}
-- Use the exact name of one of the student's courses for the course when it clearly fits.
+- {COURSE_RULE}
 - Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
 - Never use these tags for anything else, and never mention them to the student.
 """
@@ -1610,7 +1934,9 @@ def pull_assignment_tags(reply):
             continue
 
         if isinstance(data, dict):
-            added.append(normalize_assignment(data))
+            assignment = normalize_assignment(data)
+            assignment["course"] = guess_course(assignment)
+            added.append(assignment)
 
     clean_reply = UNFINISHED_TAG.sub("", ASSIGNMENT_TAG.sub("", reply)).strip()
     return clean_reply, added
@@ -1931,12 +2257,14 @@ st.divider()
 # ============================================================
 
 remove_past_assignments()
+fix_general_courses()
 
-tab1, tab2, tab3, tab4 = st.tabs(
+tab1, tab2, tab3, analytics_tab, tab4 = st.tabs(
     [
         ":material/assignment_add: Assignments",
         ":material/calendar_clock: Study Plan",
         ":material/chat_bubble: AI Assistant",
+        ":material/insights: Analytics",
         ":material/settings: Settings"
     ]
 )
@@ -2185,16 +2513,40 @@ with tab2:
                 "or turning on weekend studying in :material/settings: Settings."
             )
 
+        hide_done = False
         if not sessions:
             st.info("There was no free time to schedule before your due dates.")
+        else:
+            done_count = sum(1 for session in sessions if isinstance(session, dict) and session.get("done"))
+            st.progress(
+                done_count / len(sessions),
+                text=f"{done_count} of {len(sessions)} study sessions done"
+            )
+            hide_done = st.toggle("Hide finished sessions", key="hide_done_sessions")
 
-        for session in sessions:
+        plan_key = st.session_state.study_plan.get("created", "")
+
+        for index, session in enumerate(sessions):
             if not isinstance(session, dict):
                 continue
+            is_done = bool(session.get("done"))
+            if is_done and hide_done:
+                continue
             with st.container(border=True):
-                col1, col2, col3 = st.columns(
-                    [1.5, 2, 4]
+                check_column, col1, col2, col3 = st.columns(
+                    [0.5, 1.5, 2, 4]
                 )
+                with check_column:
+                    done_key = f"session_done_{plan_key}_{index}"
+                    st.checkbox(
+                        "Done",
+                        value=is_done,
+                        key=done_key,
+                        on_change=set_session_done,
+                        args=(index, done_key),
+                        label_visibility="collapsed",
+                        help="Check this off when you finish the session"
+                    )
                 with col1:
                     st.write(
                         f":material/event: **{session.get('date', '')}**"
@@ -2216,9 +2568,10 @@ with tab2:
                     )
 
                 with col3:
+                    task = session.get("task", "")
                     st.write(
-                        f":material/checklist: **What to do:** "
-                        f"{session.get('task', '')}"
+                        f":material/check_circle: **Done:** ~~{task}~~" if is_done
+                        else f":material/checklist: **What to do:** {task}"
                     )
                     st.caption(
                         f"{session.get('minutes', '')} minutes"
@@ -2391,6 +2744,166 @@ with tab3:
         """,
         height=0
     )
+
+# ============================================================
+# ANALYTICS TAB
+# ============================================================
+
+with analytics_tab:
+    st.header(":material/insights: Analytics")
+    st.markdown(
+        '<p class="chat-subtitle">Your study insights this week. '
+        'Check off sessions in the Study Plan tab as you finish them.</p>',
+        unsafe_allow_html=True
+    )
+
+    sessions = plan_sessions()
+    assignments = st.session_state.assignments
+    today = student_now().date()
+
+    if not sessions and not assignments:
+        st.info(
+            "Add assignments and generate a study plan to see your analytics here."
+        )
+    else:
+        stats = analytics.totals(sessions)
+        week = analytics.minutes_by_day(sessions, today)
+        streak = analytics.streak(sessions, today)
+
+        st.markdown(
+            stat_tiles_html([
+                ("schedule", "#3B82F6", "Study time (7d)",
+                 analytics.pretty_minutes(sum(day["minutes"] for day in week))),
+                ("check_circle", "#10B981", "Completed",
+                 f"{stats['done']} / {stats['total']}"),
+                ("local_fire_department", "#F97316", "Day streak",
+                 f"{streak} day{'s' if streak != 1 else ''}"),
+                ("adjust", "#8B5CF6", "Avg per task",
+                 analytics.pretty_minutes(analytics.average_minutes(sessions)))
+            ]),
+            unsafe_allow_html=True
+        )
+
+        missed = analytics.missed(sessions, today)
+        if missed:
+            st.caption(
+                f":material/warning: {len(missed)} past session{'s' if len(missed) != 1 else ''} "
+                f"{'weren' if len(missed) != 1 else 'wasn'}'t checked off. "
+                "Regenerate your study plan to fit that work back in."
+            )
+
+        hours_column, subject_column = st.columns(2)
+
+        with hours_column:
+            with st.container(border=True, height=CARD_HEIGHT):
+                st.markdown(card_title_html("bar_chart", "Study Hours (Last 7 Days)"), unsafe_allow_html=True)
+                values = [
+                    {
+                        "Day": f"{day['day']:%a}",
+                        "Date": f"{day['day']:%a, %b} {day['day'].day}",
+                        "Hours": round(day["minutes"] / 60, 2),
+                        "Minutes": day["minutes"]
+                    }
+                    for day in week
+                ]
+                most = max(value["Hours"] for value in values)
+                chart = (
+                    alt.Chart(alt.Data(values=values))
+                    .mark_bar(color="#8B5CF6", cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": 0.6})
+                    .encode(
+                        x=alt.X("Day:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
+                        y=alt.Y(
+                            "Hours:Q",
+                            title=None,
+                            scale=alt.Scale(domain=[0, max(1, most)], nice=True),
+                            axis=alt.Axis(tickMinStep=0.5)
+                        ),
+                        tooltip=[
+                            alt.Tooltip("Date:N"),
+                            alt.Tooltip("Minutes:Q", title="Minutes studied")
+                        ]
+                    )
+                )
+                st.altair_chart(styled_chart(chart), use_container_width=True, theme=None)
+                if not stats["done"]:
+                    st.caption("Check off study sessions to fill this in.")
+
+        with subject_column:
+            with st.container(border=True, height=CARD_HEIGHT):
+                st.markdown(card_title_html("pie_chart", "Assignments by Subject"), unsafe_allow_html=True)
+                subjects = analytics.assignments_by_subject(assignments)
+                if subjects:
+                    values = [{"Subject": row["course"], "Assignments": row["count"]} for row in subjects]
+                    st.altair_chart(
+                        styled_chart(horizontal_bars(values, "Subject", "Assignments", "#3987E5")),
+                        use_container_width=True,
+                        theme=None
+                    )
+                else:
+                    st.caption("No assignments yet.")
+
+        difficulty_column, load_column = st.columns(2)
+
+        with difficulty_column:
+            with st.container(border=True, height=CARD_HEIGHT):
+                st.markdown(card_title_html("signal_cellular_alt", "Difficulty Breakdown"), unsafe_allow_html=True)
+                if assignments:
+                    values = [
+                        {"Difficulty": row["label"], "Assignments": row["count"]}
+                        for row in analytics.difficulty_breakdown(assignments)
+                    ]
+                    st.altair_chart(
+                        styled_chart(horizontal_bars(values, "Difficulty", "Assignments", "#D95926")),
+                        use_container_width=True,
+                        theme=None
+                    )
+                else:
+                    st.caption("No assignments yet.")
+
+        with load_column:
+            with st.container(border=True, height=CARD_HEIGHT):
+                st.markdown(card_title_html("menu_book", "Course Load"), unsafe_allow_html=True)
+                load = analytics.course_load(sessions, setup.course_names(st.session_state.courses))
+                st.markdown(course_load_html(load), unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown(card_title_html("event_upcoming", "Coming Up (Next 7 Days)"), unsafe_allow_html=True)
+            upcoming = analytics.upcoming_deadlines(assignments, today)
+            if not upcoming:
+                st.caption("Nothing is due in the next 7 days.")
+            for assignment in upcoming:
+                days_left = assignment["days_left"]
+                when = (
+                    "today" if days_left == 0
+                    else "tomorrow" if days_left == 1
+                    else f"in {days_left} days"
+                )
+                st.write(
+                    f":material/event_note: **{assignment.get('name', '')}** · "
+                    f"{assignment.get('course', 'General')} · due {when} "
+                    f"({pretty_due_date(assignment.get('due_date'))})"
+                )
+
+        with st.expander(":material/table: Show the numbers as tables"):
+            st.dataframe(
+                [{"Day": f"{day['day']:%A, %b} {day['day'].day}", "Minutes studied": day["minutes"]} for day in week],
+                hide_index=True,
+                use_container_width=True
+            )
+            st.dataframe(
+                [
+                    {
+                        "Course": row["course"],
+                        "Sessions done": row["done"],
+                        "Sessions planned": row["total"],
+                        "Minutes done": row["done_minutes"],
+                        "Minutes planned": row["total_minutes"]
+                    }
+                    for row in load
+                ],
+                hide_index=True,
+                use_container_width=True
+            )
 
 # ============================================================
 # SETTINGS TAB
