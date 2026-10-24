@@ -1881,31 +1881,6 @@ def generate_plan():
         "created": student_now().isoformat()
     }
 
-#prompt = f"""
-#{date_context(plan_days())}
-#Rules:
-#1. Earlier deadlines have higher priority.
-#2. Difficult assignments should receive more preparation.
-#3. Large assignments should be split across multiple sessions.
-#4. Make each session about the student's preferred session length,
-#   and never longer than 90 minutes.
-#5. On school days (Mon-Fri), only schedule between the homework start time
-#   and 30 minutes before bedtime.
-#6. Only schedule on weekends if the student studies on weekends.
-#7. Never schedule during classes, dinner, or the student's activities.
-#8. Do not schedule after the assignment's due date.
-#9. Never go over the student's maximum study minutes per day.
-#10. If the student wants lighter Fridays, keep Friday to about half the usual amount.
-#11. If the student wants a Sunday catch-up day, keep Sunday free for catching up and review.
-#12. Leave the student's preferred break length between sessions.
-#13. Put harder work during the student's peak productivity time when possible.
-#14. Spread work across multiple days and avoid overwhelming the student.
-#15. Include a specific task for every study session.
-#16. Treat weekdays marked "no school" like weekend days.
-#17. If the calendar shows A/B days, each course only meets on its own day.
-#    Put review for a course on the evening before it meets, and finish
-#    homework for a course before its next class day."""
-
 # ============================================================
 # ANALYTICS HELPERS
 # ============================================================
