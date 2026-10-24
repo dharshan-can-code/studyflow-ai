@@ -513,7 +513,8 @@ div[data-baseweb="select"] {
 [data-testid="stNumberInput"] input,
 [data-testid="stTimeInputTimeDisplay"],
 [data-testid="stTimeInput"] [data-baseweb="select"] > div,
-[data-testid="stTimeInput"] [data-baseweb="input"] {
+[data-testid="stTimeInput"] [data-baseweb="input"],
+[data-testid="stDateInput"] [data-baseweb="input"] {
     background-color: #1E293B !important;
     color: #F8FAFC !important;
     border-radius: 10px !important;
@@ -522,9 +523,19 @@ div[data-baseweb="select"] {
 [data-testid="stSelectbox"] [role="group"] *,
 [data-testid="stNumberInputContainer"] input,
 [data-testid="stTimeInput"] input,
-[data-testid="stTimeInputTimeDisplay"] * {
+[data-testid="stTimeInputTimeDisplay"] *,
+[data-testid="stDateInput"] input {
     color: #F8FAFC !important;
     background-color: transparent !important;
+}
+
+[data-testid="stDialog"] > div {
+    background-color: #111C33 !important;
+    border: 1px solid #334155 !important;
+}
+
+[data-testid="stDialog"] button[aria-label="Close"] {
+    color: #F8FAFC !important;
 }
 
 .chat-thinking {
@@ -643,7 +654,7 @@ AI_TIMEOUT_SECONDS = 90
 
 AI_ATTEMPTS = 2
 
-TASK_TIMEOUT_SECONDS = 12
+TASK_TIMEOUT_SECONDS = 45
 
 client = Client(
     host="https://ollama.com",
@@ -1121,6 +1132,14 @@ ASSIGNMENT_TYPES = [
     "other"
 ]
 
+ASSIGNMENT_NAME_RULE = (
+    "The name is the full, specific name of the item: the course's exact name from the student's "
+    "course list, then any unit, chapter, or topic the student or the file gave, then the type. "
+    "Expand nicknames and abbreviations, so \"precalc quiz\" for a student taking AP Precalculus BC "
+    "becomes \"AP Precalculus BC Unit 2 Quiz\" when it covers unit 2. Never invent unit or chapter numbers."
+)
+
+
 def title_case(text):
     # Words already in all caps are usually acronyms (AP, DNA), so keep them.
     return " ".join(
@@ -1170,6 +1189,112 @@ def pretty_due_date(value):
     if day is None:
         return _text(value, "Not set")
     return f"{day:%a, %b} {day.day}, {day.year}"
+
+
+def remove_past_assignments():
+    today = student_now().date()
+    upcoming = [
+        assignment for assignment in st.session_state.assignments
+        if (due_date_value(assignment.get("due_date")) or today) >= today
+    ]
+    if len(upcoming) != len(st.session_state.assignments):
+        st.session_state.assignments = upcoming
+        save()
+
+
+@st.dialog("Edit assignment")
+def edit_assignment_dialog(index):
+    assignment = st.session_state.assignments[index]
+    key = f"edit_{index}"
+
+    course_options = setup.course_names(st.session_state.courses) + ["General"]
+    current_course = assignment.get("course") or "General"
+    if current_course not in course_options:
+        course_options.append(current_course)
+
+    type_options = [""] + ASSIGNMENT_TYPES
+    current_type = assignment.get("type") or ""
+    if current_type not in type_options:
+        current_type = ""
+
+    name = st.text_input("Assignment", value=assignment.get("name", ""), key=f"{key}_name")
+
+    type_column, course_column = st.columns(2)
+    with type_column:
+        assignment_type = st.selectbox(
+            "Type",
+            type_options,
+            index=type_options.index(current_type),
+            format_func=lambda option: option.title() if option else "Not sure",
+            key=f"{key}_type"
+        )
+    with course_column:
+        course = st.selectbox(
+            "Course",
+            course_options,
+            index=course_options.index(current_course),
+            key=f"{key}_course"
+        )
+
+    due_column, priority_column = st.columns(2)
+    with due_column:
+        due = st.date_input(
+            "Due date",
+            value=due_date_value(assignment.get("due_date")),
+            format="MM/DD/YYYY",
+            key=f"{key}_due"
+        )
+    with priority_column:
+        priorities = ["Low", "Medium", "High"]
+        priority = st.selectbox(
+            "Priority",
+            priorities,
+            index=priorities.index(assignment.get("priority", "Medium")),
+            key=f"{key}_priority"
+        )
+
+    difficulty_column, minutes_column = st.columns(2)
+    with difficulty_column:
+        difficulty = st.slider(
+            "Difficulty",
+            1,
+            5,
+            value=_whole_number(assignment.get("difficulty"), 3),
+            key=f"{key}_difficulty"
+        )
+    with minutes_column:
+        minutes = st.number_input(
+            "Prep minutes" if assignment_type in scheduler.PREP_TYPES else "Work minutes",
+            min_value=5,
+            step=5,
+            value=_whole_number(assignment.get("estimated_minutes"), 60),
+            key=f"{key}_minutes"
+        )
+
+    description = st.text_area("Notes", value=assignment.get("description", ""), key=f"{key}_notes")
+
+    save_column, cancel_column = st.columns(2)
+    with save_column:
+        if st.button(":material/check: Save", type="primary", use_container_width=True, key=f"{key}_save"):
+            if not name.strip():
+                st.warning("Please give the assignment a name.")
+            else:
+                st.session_state.assignments[index] = normalize_assignment({
+                    "name": name,
+                    "type": assignment_type,
+                    "course": course,
+                    "due_date": due_date_text(due),
+                    "difficulty": difficulty,
+                    "estimated_minutes": minutes,
+                    "priority": priority,
+                    "description": description
+                })
+                save()
+                st.session_state.flash = "Assignment updated. Regenerate your study plan to include the changes."
+                st.rerun()
+    with cancel_column:
+        if st.button("Cancel", use_container_width=True, key=f"{key}_cancel"):
+            st.rerun()
 
 
 def extract_assignments(text, uploaded_file=None):
@@ -1225,6 +1350,7 @@ Rules:
 - If the student wrote a description and uploaded a file, use the description to fill in or
   correct details from the file (for example, which course it is for or when it is due).
 - Match the course to one of the student's courses when it clearly fits, using that course's exact name.
+- {ASSIGNMENT_NAME_RULE}
 - Use YYYY-MM-DD for the due date. Convert relative dates such as "next Tuesday" using the calendar above.
 - If an item has no due date, use "Not set".
 - If a date has no year, use the next upcoming date.
@@ -1236,7 +1362,8 @@ Rules:
 - If the type is test, quiz, or presentation, the estimated minutes is the time to prepare for it ONLY.
   Otherwise, it is the time to complete it.
 - Estimate realistic focused work time.
-- Keep the description short and only include details the student or the file gave.
+- The description lists every useful detail the student or the file gave: chapters, sections, page numbers,
+  problem numbers, topics covered, and requirements. Never invent details.
 - If nothing is found, return {{"assignments": []}}.
 """
     result = ask_ai(
@@ -1341,7 +1468,7 @@ def write_tasks(sessions):
             "course": session["course"],
             "assignment": session["assignment"],
             "type": session["type"],
-            "notes": session["description"][:300],
+            "notes": session["description"][:600],
             "part": f"{session['part']} of {session['parts']}",
             "minutes": session["minutes"],
             "due": session["due_date"]
@@ -1354,7 +1481,10 @@ Sessions:
 {json.dumps(details, indent=1)}
 
 Rules:
-- Each task says exactly what to do in that session, in 6 to 15 words.
+- Each task tells the student exactly what to do in that session, in 10 to 25 words.
+- Name the specific chapters, sections, pages, problems, or topics from the notes, and divide them
+  across the parts of the same assignment so each part covers a different piece
+  (for example, part 1: sections 2.1-2.3, part 2: sections 2.4-2.6, part 3: mixed review).
 - Parts of the same assignment build on each other, from getting started to finishing.
 - For tests and quizzes, use active study: practice problems, self-quizzing, flashcards, reviewing mistakes.
 - For presentations, prepare slides or notes and rehearse out loud.
@@ -1458,6 +1588,8 @@ in exactly this format:
 <add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
 - Difficulty must be 1-5. Priority must be Low, Medium, or High.
 - Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
+- {ASSIGNMENT_NAME_RULE}
+- Use the exact name of one of the student's courses for the course when it clearly fits.
 - Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
 - Never use these tags for anything else, and never mention them to the student.
 """
@@ -1798,6 +1930,8 @@ st.divider()
 # TABS
 # ============================================================
 
+remove_past_assignments()
+
 tab1, tab2, tab3, tab4 = st.tabs(
     [
         ":material/assignment_add: Assignments",
@@ -1989,15 +2123,27 @@ with tab1:
                         f"{assignment.get('priority', 'Medium')}"
                     )
 
-                    if st.button(
-                        ":material/delete:",
-                        key=f"delete_{i}"
-                    ):
-                        st.session_state.assignments.pop(
-                            i
-                        )
-                        save()
-                        st.rerun()
+                    edit_column, delete_column = st.columns(2)
+
+                    with edit_column:
+                        if st.button(
+                            ":material/edit:",
+                            key=f"edit_{i}",
+                            help="Edit"
+                        ):
+                            edit_assignment_dialog(i)
+
+                    with delete_column:
+                        if st.button(
+                            ":material/delete:",
+                            key=f"delete_{i}",
+                            help="Delete"
+                        ):
+                            st.session_state.assignments.pop(
+                                i
+                            )
+                            save()
+                            st.rerun()
 
 # ============================================================
 # STUDY PLAN TAB
@@ -2071,7 +2217,7 @@ with tab2:
 
                 with col3:
                     st.write(
-                        f"**Task:** "
+                        f":material/checklist: **What to do:** "
                         f"{session.get('task', '')}"
                     )
                     st.caption(
@@ -2203,6 +2349,44 @@ with tab3:
                 event.preventDefault();
             };
             doc.addEventListener('copy', doc.__studyflowCopyHandler);
+
+            // Keep the chat scrolled to the newest message while the AI Assistant tab is open.
+            const chatInput = () => doc.querySelector('[data-testid="stChatInput"]');
+            let scrollQueued = false;
+            const scrollChat = () => {
+                scrollQueued = false;
+                const input = chatInput();
+                if (!input || !input.getClientRects().length) return;
+                input.scrollIntoView({ block: 'end' });
+            };
+            // Use the page's animation frame: this hidden iframe's own frames are throttled.
+            const queueScroll = () => {
+                if (scrollQueued) return;
+                scrollQueued = true;
+                window.parent.requestAnimationFrame(scrollChat);
+            };
+
+            if (doc.__studyflowChatObserver) {
+                doc.__studyflowChatObserver.disconnect();
+            }
+            doc.__studyflowChatObserver = new MutationObserver((mutations) => {
+                const input = chatInput();
+                const panel = input && input.closest('[role="tabpanel"]');
+                if (panel && mutations.some((mutation) => panel.contains(mutation.target))) {
+                    queueScroll();
+                }
+            });
+            doc.__studyflowChatObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
+
+            // Tab clicks don't bubble up to the document, so listen in the capture phase.
+            if (doc.__studyflowTabClick) {
+                doc.removeEventListener('click', doc.__studyflowTabClick, true);
+            }
+            doc.__studyflowTabClick = (event) => {
+                if (event.target.closest('[role="tab"]')) setTimeout(queueScroll, 100);
+            };
+            doc.addEventListener('click', doc.__studyflowTabClick, true);
+            queueScroll();
         </script>
         """,
         height=0
