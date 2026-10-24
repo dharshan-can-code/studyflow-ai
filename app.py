@@ -1,17 +1,21 @@
 import streamlit as st
+import altair as alt
 import html
 import json
 import re
 import secrets
+import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from ollama import Client
+from ollama import Client, ResponseError
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 import flashcard_display as fcard
 
 import ab_calendar
+import analytics
 import calendar_export
+import scheduler
 import setup_forms as setup
 import storage
 import uploads
@@ -429,6 +433,16 @@ div[data-baseweb="select"] {
     margin-top: 4px;
 }
 
+.greeting-icon {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal;
+    font-size: 26px;
+    line-height: 1;
+    vertical-align: -4px;
+    color: #A78BFA;
+    font-feature-settings: 'liga';
+}
+
 .greeting-date {
     font-family: 'Inter', sans-serif;
     color: #94A3B8;
@@ -442,6 +456,137 @@ div[data-baseweb="select"] {
     margin: 24px 0 16px;
 }
 
+
+/* ============================================================
+   ASSIGNMENT CARDS
+   ============================================================ */
+
+.assignment-type {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #94A3B8;
+}
+
+.assignment-name {
+    font-family: 'Sora', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #F8FAFC;
+    margin-bottom: 0.5rem;
+}
+
+
+/* ============================================================
+   ANALYTICS
+   ============================================================ */
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin: 4px 0 20px;
+}
+
+@media (max-width: 1100px) {
+    .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.stat-tile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    padding: 18px;
+    background-color: #1E293B;
+    border-radius: 12px;
+}
+
+.stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    color: #FFFFFF;
+    font-family: 'Material Symbols Rounded';
+    font-size: 24px;
+}
+
+.stat-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #94A3B8;
+}
+
+.stat-value {
+    font-family: 'Sora', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: #F8FAFC;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-family: 'Sora', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: #F8FAFC;
+}
+
+.card-icon {
+    font-family: 'Material Symbols Rounded';
+    font-size: 20px;
+    color: #A78BFA;
+}
+
+.load-row {
+    margin-bottom: 14px;
+}
+
+.load-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #CBD5E1;
+}
+
+.load-count {
+    color: #94A3B8;
+    font-variant-numeric: tabular-nums;
+}
+
+.load-track {
+    height: 6px;
+    overflow: hidden;
+    background-color: #334155;
+    border-radius: 999px;
+}
+
+.load-fill {
+    height: 100%;
+    background-color: #8B5CF6;
+    border-radius: 999px;
+}
+
+.load-empty {
+    color: #94A3B8 !important;
+}
+
 [data-testid="stSidebar"] [data-testid="stIconMaterial"] {
     font-family: 'Material Symbols Rounded' !important;
 }
@@ -449,6 +594,10 @@ div[data-baseweb="select"] {
 [data-testid="stToast"] {
     background-color: #1E293B !important;
     border: 1px solid #334155 !important;
+}
+
+[data-testid="stToast"] [data-testid="stIconMaterial"] {
+    color: #A78BFA !important;
 }
 
 .stButton button[kind="tertiary"] {
@@ -477,7 +626,8 @@ div[data-baseweb="select"] {
 [data-testid="stNumberInput"] input,
 [data-testid="stTimeInputTimeDisplay"],
 [data-testid="stTimeInput"] [data-baseweb="select"] > div,
-[data-testid="stTimeInput"] [data-baseweb="input"] {
+[data-testid="stTimeInput"] [data-baseweb="input"],
+[data-testid="stDateInput"] [data-baseweb="input"] {
     background-color: #1E293B !important;
     color: #F8FAFC !important;
     border-radius: 10px !important;
@@ -486,9 +636,24 @@ div[data-baseweb="select"] {
 [data-testid="stSelectbox"] [role="group"] *,
 [data-testid="stNumberInputContainer"] input,
 [data-testid="stTimeInput"] input,
-[data-testid="stTimeInputTimeDisplay"] * {
+[data-testid="stTimeInputTimeDisplay"] *,
+[data-testid="stDateInput"] input {
     color: #F8FAFC !important;
     background-color: transparent !important;
+}
+
+[data-testid="stDialog"] > div {
+    background-color: #111C33 !important;
+    border: 1px solid #334155 !important;
+}
+
+[data-testid="stDialog"] button[aria-label="Close"] {
+    color: #F8FAFC !important;
+}
+
+.chat-thinking {
+    color: #94A3B8;
+    font-style: italic;
 }
 
 [data-testid="stMarkdownContainer"] a {
@@ -598,12 +763,26 @@ except Exception:
     )
     st.stop()
 
+AI_TIMEOUT_SECONDS = 90
+
+AI_ATTEMPTS = 2
+
+TASK_TIMEOUT_SECONDS = 45
+
 client = Client(
     host="https://ollama.com",
     headers={
         "Authorization": f"Bearer {ollama_api_key}"
-    }
+    },
+    timeout=AI_TIMEOUT_SECONDS
+)
 
+task_client = Client(
+    host="https://ollama.com",
+    headers={
+        "Authorization": f"Bearer {ollama_api_key}"
+    },
+    timeout=TASK_TIMEOUT_SECONDS
 )
 
 MODEL = "gpt-oss:20b-cloud"
@@ -651,6 +830,9 @@ if 'card_idxs' not in st.session_state:
     st.session_state.card_idxs = []
 
 #st.session_state.flashcard_sets = []
+if "assignment_form" not in st.session_state:
+    st.session_state.assignment_form = 0
+
 
 def prepare_saved_data():
     st.session_state.courses = setup.normalize_courses(st.session_state.courses)
@@ -680,8 +862,27 @@ def signed_in_with_google():
     return google_login_available() and st.user.is_logged_in
 
 
+def read_guest_cookie():
+    with COOKIE_SLOT:
+        controller = CookieController(key="studyflow_cookie_controller")
+
+        if "cookie_controller_loaded" not in st.session_state:
+            st.session_state.cookie_controller_loaded = True
+            st.stop()
+
+        return controller.get(GUEST_COOKIE)
+
+
 def existing_guest_token():
-    return st.session_state.get("guest_token") or st.context.cookies.get(GUEST_COOKIE)
+    token = st.session_state.get("guest_token") or st.context.cookies.get(GUEST_COOKIE)
+    if token or st.session_state.get("guest_cookie_checked"):
+        return token
+
+    token = read_guest_cookie()
+    st.session_state.guest_cookie_checked = True
+    if token:
+        st.session_state.guest_token = token
+    return token
 
 
 def create_guest_token():
@@ -815,7 +1016,7 @@ def save():
                 "Run supabase/add_setup.sql in the Supabase SQL Editor."
             )
         else:
-            st.toast("Couldn't save your latest changes. Check your connection.", icon="⚠️")
+            st.toast("Couldn't save your latest changes. Check your connection.", icon=":material/warning:")
 
 
 def delete_my_data():
@@ -903,42 +1104,90 @@ def plan_days():
 # AI HELPER
 # ============================================================
 
+def build_messages(prompt, system_message, conversation=None, images=None):
+    messages = [
+        {
+            "role": "system",
+            "content": system_message
+        }
+    ]
+
+    if conversation:
+        messages[0]["content"] += "\n\n" + prompt
+        for m in conversation:
+            model_message = {
+                "role": m["role"],
+                "content": m["content"]
+            }
+            if m.get("images"):
+                model_message["images"] = m["images"]
+            messages.append(model_message)
+    else:
+        user_message = {
+            "role": "user",
+            "content": prompt
+        }
+        if images:
+            user_message["images"] = images
+        messages.append(user_message)
+
+    return messages
+
+
+def think_setting(model):
+    return "low" if model.startswith("gpt-oss") else False
+
+
+def is_timeout(error):
+    return "timeout" in type(error).__name__.lower()
+
+
+def call_model(model, messages, use_json, temperature):
+    request = {
+        "model": model,
+        "messages": messages,
+        "format": "json" if use_json else None,
+        "options": {"temperature": temperature}
+    }
+
+    for attempt in range(AI_ATTEMPTS):
+        started = time.monotonic()
+        try:
+            try:
+                response = client.chat(think=think_setting(model), **request)
+            except ResponseError as error:
+                if "think" not in str(error).lower():
+                    raise
+                response = client.chat(**request)
+            print(f"AI {model} answered in {time.monotonic() - started:.1f}s")
+            return response
+        except Exception as error:
+            print(f"AI {model} failed after {time.monotonic() - started:.1f}s: {type(error).__name__}")
+            if is_timeout(error) and attempt < AI_ATTEMPTS - 1:
+                continue
+            raise
+
+
+def stream_model(model, messages, temperature):
+    request = {
+        "model": model,
+        "messages": messages,
+        "options": {"temperature": temperature},
+        "stream": True
+    }
+
+    try:
+        yield from client.chat(think=think_setting(model), **request)
+    except ResponseError as error:
+        if "think" not in str(error).lower():
+            raise
+        yield from client.chat(**request)
+
+
 def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None, model=MODEL, temperature=0):
     try:
-        messages = [
-            {
-                "role": "system",
-                "content": system_message
-            }
-        ]
-
-        if conversation:
-            messages[0]["content"] += "\n\n" + prompt
-            for m in conversation:
-                model_message = {
-                    "role": m["role"],
-                    "content": m["content"]
-                }
-                if m.get("images"):
-                    model_message["images"] = m["images"]
-                messages.append(model_message)
-        else:
-            user_message = {
-                "role": "user",
-                "content": prompt
-            }
-            if images:
-                user_message["images"] = images
-            messages.append(user_message)
-
-        response = client.chat(
-            model=model,
-            messages=messages,
-            format="json" if use_json else None,
-            options={
-                "temperature": temperature
-            }
-        )
+        messages = build_messages(prompt, system_message, conversation, images)
+        response = call_model(model, messages, use_json, temperature)
 
         result = response.message.content
 
@@ -973,8 +1222,12 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None
         return None
 
     except Exception as e:
-        st.error("Unable to connect to Ollama.")
-        st.code(str(e))
+        print("AI REQUEST FAILED:", type(e).__name__, e)
+        if is_timeout(e):
+            st.error("The AI took too long to answer. Please try again in a minute.")
+        else:
+            st.error("Unable to connect to Ollama.")
+            st.code(str(e))
         return None
 
 
@@ -998,13 +1251,159 @@ def _whole_number(value, default):
         return default
 
 
+ASSIGNMENT_TYPES = [
+    "homework",
+    "test",
+    "quiz",
+    "project",
+    "essay",
+    "presentation",
+    "notes",
+    "program",
+    "script",
+    "other"
+]
+
+COURSE_RULE = (
+    "The course must be one of the student's courses, written exactly as it appears in their course list. "
+    "Pick the closest one even when the student uses a nickname or abbreviation (for example \"precalc\" "
+    "means their Precalculus course, \"bio\" their Biology course, and \"english essay\" their English course). "
+    "Use \"General\" only when the item clearly doesn't belong to any of their courses."
+)
+
+COURSE_FILLER_WORDS = {
+    "ap", "ib", "honors", "hn", "h", "aa", "gt", "de", "dual", "enrollment", "advanced",
+    "intro", "introduction", "to", "the", "and", "of", "in", "&", "class", "course"
+}
+
+COURSE_NICKNAMES = {
+    "apush": "united states history",
+    "ush": "united states history",
+    "bio": "biology",
+    "alg": "algebra",
+    "eng": "english",
+    "sci": "science",
+    "euro": "european",
+    "apes": "environmental science",
+    "csa": "computer science",
+    "csp": "computer science",
+    "cs": "computer science",
+    "compsci": "computer science",
+    "lang": "language",
+    "lit": "literature",
+    "gov": "government",
+    "stats": "statistics",
+    "trig": "trigonometry",
+    "pe": "physical education",
+    "gym": "physical education",
+    "ela": "english"
+}
+
+
+def _course_words(text):
+    words = re.findall(r"[a-z]+|\d+", str(text or "").lower())
+    expanded = []
+    for word in words:
+        expanded.extend(COURSE_NICKNAMES.get(word, word).split())
+    return expanded
+
+
+def match_course(text, names):
+    """Return the student's course that `text` refers to, or None if it's unclear."""
+    if not text:
+        return None
+    for name in names:
+        if str(text).strip().casefold() == name.casefold():
+            return name
+
+    text_words = [word for word in _course_words(text) if word not in COURSE_FILLER_WORDS]
+    scores = {}
+    for name in names:
+        course_words = [
+            word for word in _course_words(name)
+            if word not in COURSE_FILLER_WORDS and not word.isdigit()
+        ]
+        score = 0
+        for course_word in course_words:
+            # Whole words match at any length; prefixes ("precalc", "chem") need 4+ letters.
+            if any(
+                word == course_word
+                or (min(len(word), len(course_word)) >= 4
+                    and (course_word.startswith(word) or word.startswith(course_word)))
+                for word in text_words
+            ):
+                score += 1
+        if score:
+            scores[name] = score
+
+    if not scores:
+        return None
+    best = max(scores.values())
+    winners = [name for name, score in scores.items() if score == best]
+    return winners[0] if len(winners) == 1 else None
+
+
+def guess_course(assignment):
+    names = setup.course_names(st.session_state.courses)
+    course = assignment.get("course") or ""
+    if course in names:
+        return course
+    for text in (course, assignment.get("name"), assignment.get("description")):
+        match = match_course(text, names)
+        if match:
+            return match
+    return course or "General"
+
+
+def fix_general_courses():
+    # One-time repair for assignments saved before course matching existed.
+    if st.session_state.profile.get("courses_matched"):
+        return
+
+    fixed = {}
+    for assignment in st.session_state.assignments:
+        if assignment.get("course") in ("", "General"):
+            assignment["course"] = guess_course({**assignment, "course": ""})
+            fixed[assignment.get("name")] = assignment["course"]
+
+    for session in plan_sessions():
+        if session.get("course") in ("", "General") and fixed.get(session.get("assignment"), "General") != "General":
+            session["course"] = fixed[session["assignment"]]
+
+    st.session_state.profile["courses_matched"] = True
+    save()
+
+
+ASSIGNMENT_NAME_RULE = (
+    "The name is the full, specific name of the item: the course's exact name from the student's "
+    "course list, then any unit, chapter, or topic the student or the file gave, then the type. "
+    "Expand nicknames and abbreviations, so \"precalc quiz\" for a student taking AP Precalculus BC "
+    "becomes \"AP Precalculus BC Unit 2 Quiz\" when it covers unit 2. Never invent unit or chapter numbers."
+)
+
+
+def title_case(text):
+    # Words already in all caps are usually acronyms (AP, DNA), so keep them.
+    return " ".join(
+        word if word.isupper() else word[:1].upper() + word[1:].lower()
+        for word in text.split()
+    )
+
+
 def normalize_assignment(assignment):
     priority = _text(assignment.get("priority"), "Medium").title()
     if priority not in ("Low", "Medium", "High"):
         priority = "Medium"
 
+    assignment_type = _text(assignment.get("type"), "").lower()
+    if assignment_type not in ASSIGNMENT_TYPES:
+        assignment_type = ""
+
+    name = _text(assignment.get("name"), "Untitled assignment")
+
     return {
-        "name": _text(assignment.get("name"), "Untitled assignment"),
+        "name": title_case(name),
+        "type": assignment_type,
         "course": _text(assignment.get("course"), "General"),
         "due_date": _text(assignment.get("due_date"), "Not set"),
         "difficulty": min(5, max(1, _whole_number(assignment.get("difficulty"), 3))),
@@ -1014,19 +1413,153 @@ def normalize_assignment(assignment):
     }
 
 
-def find_assignments_in_upload(uploaded_file):
-    if uploads.is_pdf(uploaded_file):
-        document_text = uploads.pdf_text(uploaded_file)
-        source = f'Here is the text of the uploaded document:\n"""\n{document_text}\n"""'
-        images = None
-        model = MODEL
-    else:
-        images = [uploads.encode_image(uploaded_file)]
-        source = (
-            "The attached image is a photo of the student's assignment sheet, "
-            "syllabus, or planner page."
+def due_date_value(value):
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def due_date_text(value):
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    return _text(value, "Not set")
+
+
+def pretty_due_date(value):
+    day = due_date_value(value)
+    if day is None:
+        return _text(value, "Not set")
+    return f"{day:%a, %b} {day.day}, {day.year}"
+
+
+def remove_past_assignments():
+    today = student_now().date()
+    upcoming = [
+        assignment for assignment in st.session_state.assignments
+        if (due_date_value(assignment.get("due_date")) or today) >= today
+    ]
+    if len(upcoming) != len(st.session_state.assignments):
+        st.session_state.assignments = upcoming
+        save()
+
+
+@st.dialog("Edit assignment")
+def edit_assignment_dialog(index):
+    assignment = st.session_state.assignments[index]
+    key = f"edit_{index}"
+
+    course_options = setup.course_names(st.session_state.courses) + ["General"]
+    current_course = assignment.get("course") or "General"
+    if current_course not in course_options:
+        course_options.append(current_course)
+
+    type_options = [""] + ASSIGNMENT_TYPES
+    current_type = assignment.get("type") or ""
+    if current_type not in type_options:
+        current_type = ""
+
+    name = st.text_input("Assignment", value=assignment.get("name", ""), key=f"{key}_name")
+
+    type_column, course_column = st.columns(2)
+    with type_column:
+        assignment_type = st.selectbox(
+            "Type",
+            type_options,
+            index=type_options.index(current_type),
+            format_func=lambda option: option.title() if option else "Not sure",
+            key=f"{key}_type"
         )
-        model = VISION_MODEL
+    with course_column:
+        course = st.selectbox(
+            "Course",
+            course_options,
+            index=course_options.index(current_course),
+            key=f"{key}_course"
+        )
+
+    due_column, priority_column = st.columns(2)
+    with due_column:
+        due = st.date_input(
+            "Due date",
+            value=due_date_value(assignment.get("due_date")),
+            format="MM/DD/YYYY",
+            key=f"{key}_due"
+        )
+    with priority_column:
+        priorities = ["Low", "Medium", "High"]
+        priority = st.selectbox(
+            "Priority",
+            priorities,
+            index=priorities.index(assignment.get("priority", "Medium")),
+            key=f"{key}_priority"
+        )
+
+    difficulty_column, minutes_column = st.columns(2)
+    with difficulty_column:
+        difficulty = st.slider(
+            "Difficulty",
+            1,
+            5,
+            value=_whole_number(assignment.get("difficulty"), 3),
+            key=f"{key}_difficulty"
+        )
+    with minutes_column:
+        minutes = st.number_input(
+            "Prep minutes" if assignment_type in scheduler.PREP_TYPES else "Work minutes",
+            min_value=5,
+            step=5,
+            value=_whole_number(assignment.get("estimated_minutes"), 60),
+            key=f"{key}_minutes"
+        )
+
+    description = st.text_area("Notes", value=assignment.get("description", ""), key=f"{key}_notes")
+
+    save_column, cancel_column = st.columns(2)
+    with save_column:
+        if st.button(":material/check: Save", type="primary", use_container_width=True, key=f"{key}_save"):
+            if not name.strip():
+                st.warning("Please give the assignment a name.")
+            else:
+                st.session_state.assignments[index] = normalize_assignment({
+                    "name": name,
+                    "type": assignment_type,
+                    "course": course,
+                    "due_date": due_date_text(due),
+                    "difficulty": difficulty,
+                    "estimated_minutes": minutes,
+                    "priority": priority,
+                    "description": description
+                })
+                save()
+                st.session_state.flash = "Assignment updated. Regenerate your study plan to include the changes."
+                st.rerun()
+    with cancel_column:
+        if st.button("Cancel", use_container_width=True, key=f"{key}_cancel"):
+            st.rerun()
+
+
+def extract_assignments(text, uploaded_file=None):
+    sources = []
+    images = None
+    model = MODEL
+
+    if text:
+        sources.append(f'The student described their work like this:\n"""\n{text}\n"""')
+
+    if uploaded_file is not None:
+        if uploads.is_pdf(uploaded_file):
+            document_text = uploads.pdf_text(uploaded_file)
+            sources.append(f'Here is the text of the uploaded document:\n"""\n{document_text}\n"""')
+        else:
+            images = [uploads.encode_image(uploaded_file)]
+            sources.append(
+                "The attached image is a photo of the student's assignment sheet, "
+                "syllabus, or planner page."
+            )
+            model = VISION_MODEL
+
+    source = "\n\n".join(sources)
 
     prompt = f"""
 {date_context()}
@@ -1036,13 +1569,14 @@ The student's courses are:
 
 {source}
 
-Find every assignment, test, quiz, project, or other item with a due date.
+Find every assignment, test, quiz, project, or other item the student needs to do.
 Return ONLY valid JSON.
 Use exactly this format:
 {{
     "assignments": [
         {{
             "name": "",
+            "type": "",
             "course": "",
             "due_date": "YYYY-MM-DD",
             "difficulty": 3,
@@ -1054,18 +1588,29 @@ Use exactly this format:
 }}
 
 Rules:
-- Only include items that actually appear in the document. Never invent items.
-- Match the course to one of the student's courses when it clearly fits.
+- Only include items the student described or that actually appear in the file. Never invent items.
+- If the student wrote a description and uploaded a file, use the description to fill in or
+  correct details from the file (for example, which course it is for or when it is due).
+- {COURSE_RULE}
+- {ASSIGNMENT_NAME_RULE}
+- Use YYYY-MM-DD for the due date. Convert relative dates such as "next Tuesday" using the calendar above.
 - If an item has no due date, use "Not set".
 - If a date has no year, use the next upcoming date.
-- Difficulty must be 1-5.
+- Difficulty must be 1-5 (1 = extremely easy, 5 = extremely difficult).
 - Priority must be Low, Medium, or High.
+- Type must be one of: {", ".join(ASSIGNMENT_TYPES)}.
+  Use the type the student gives, or infer it only if you are EXTREMELY SURE. If you are not sure, leave the type blank.
+  Use the type to help decide the priority and difficulty.
+- If the type is test, quiz, or presentation, the estimated minutes is the time to prepare for it ONLY.
+  Otherwise, it is the time to complete it.
 - Estimate realistic focused work time.
+- The description lists every useful detail the student or the file gave: chapters, sections, page numbers,
+  problem numbers, topics covered, and requirements. Never invent details.
 - If nothing is found, return {{"assignments": []}}.
 """
     result = ask_ai(
         prompt,
-        "You are an AI academic planner that reads assignment sheets. "
+        "You are an AI academic planner that reads students' descriptions and assignment sheets. "
         "Return only valid JSON.",
         images=images,
         model=model
@@ -1078,53 +1623,162 @@ Rules:
     if not isinstance(found, list):
         return []
 
-    return [normalize_assignment(item) for item in found if isinstance(item, dict)]
-
-
-def analyze_assignment(text):
-
-    prompt = f"""
-{date_context()}
-
-The student's courses are:
-{json.dumps(setup.course_names(st.session_state.courses))}
-
-Analyze this student's academic task:
-"{text}"
-Return ONLY valid JSON.
-Use exactly this format:
-{{
-    "name": "",
-    "course": "",
-    "due_date": "YYYY-MM-DD",
-    "difficulty": 1,
-    "estimated_minutes": 60,
-    "priority": "Medium",
-    "description": ""
-}}
-
-Rules:
-- Difficulty must be 1-5.
-- 1 = extremely easy.
-- 5 = extremely difficult.
-- Priority must be Low, Medium, or High.
-- Estimate realistic focused work time.
-- Use YYYY-MM-DD for the due date.
-- Do not invent unnecessary information.
-- Match the course to one of the student's courses when it clearly fits,
-  using that course's exact name.
-- If the student gives a relative date such as
-  "next Tuesday", convert it into the correct date.
-"""
-    return ask_ai(
-        prompt,
-        "You are an intelligent AI academic planner. "
-        "Return only valid JSON."
-    )
+    found = [normalize_assignment(item) for item in found if isinstance(item, dict)]
+    for item in found:
+        item["course"] = guess_course(item)
+    return found
 
 # ============================================================
 # STUDY PLAN GENERATOR
 # ============================================================
+
+def plan_day_label(value):
+    if not uses_ab_calendar():
+        return ""
+    try:
+        day = datetime.strptime(str(value), "%Y-%m-%d").date()
+    except ValueError:
+        return ""
+    return ab_calendar.short_label(day)
+
+
+def show_calendar_export(sessions, zone_name):
+    with st.container(border=True):
+        st.subheader(":material/ios_share: Export to your calendar")
+
+        include_due = st.toggle(
+            "Include assignment due dates",
+            value=True,
+            key="export_include_due"
+        )
+
+        session_count, due_count = calendar_export.count_events(
+            sessions,
+            st.session_state.assignments,
+            include_due
+        )
+
+        if not session_count and not due_count:
+            st.caption("There's nothing with a date to export yet.")
+            return
+
+        summary = f"{session_count} study session{'s' if session_count != 1 else ''}"
+        if include_due:
+            summary += f" and {due_count} due date{'s' if due_count != 1 else ''}"
+        st.caption(f"{summary}, each study session with a 10-minute reminder.")
+
+        st.download_button(
+            ":material/download: Download calendar file (.ics)",
+            data=calendar_export.build_ics(
+                sessions,
+                st.session_state.assignments,
+                zone_name,
+                include_due
+            ),
+            file_name="studyflow-study-plan.ics",
+            mime="text/calendar",
+            type="primary",
+            use_container_width=True,
+            key="export_download"
+        )
+
+        with st.expander("How to add it to Google Calendar"):
+            st.markdown(
+                "1. Open **calendar.google.com** on a computer.\n"
+                "2. Click **:material/settings: Settings**, then **Import & export**.\n"
+                "3. Choose the file you downloaded and click **Import**.\n\n"
+                "Tip: make a new calendar called *StudyFlow* first and import into it, "
+                "so you can hide or delete the whole plan in one click. "
+                "If you make a new plan later, clear out the old one before importing again. "
+                "The file also works with Apple Calendar and Outlook."
+            )
+
+
+def is_school_day_for_student(day):
+    if not uses_ab_calendar():
+        return day.weekday() < 5
+    if ab_calendar.in_school_year(day):
+        return ab_calendar.day_type(day) is not None
+    return day.weekday() < 5
+
+
+def write_tasks(sessions):
+    if not sessions:
+        return {}
+
+    details = []
+    for number, session in enumerate(sessions, start=1):
+        details.append({
+            "id": number,
+            "course": session["course"],
+            "assignment": session["assignment"],
+            "type": session["type"],
+            "notes": session["description"][:600],
+            "part": f"{session['part']} of {session['parts']}",
+            "minutes": session["minutes"],
+            "due": session["due_date"]
+        })
+
+    prompt = f"""
+Write one study task for each study session below.
+
+Sessions:
+{json.dumps(details, indent=1)}
+
+Rules:
+- Each task tells the student exactly what to do in that session, in 10 to 25 words.
+- Name the specific chapters, sections, pages, problems, or topics from the notes, and divide them
+  across the parts of the same assignment so each part covers a different piece
+  (for example, part 1: sections 2.1-2.3, part 2: sections 2.4-2.6, part 3: mixed review).
+- Parts of the same assignment build on each other, from getting started to finishing.
+- For tests and quizzes, use active study: practice problems, self-quizzing, flashcards, reviewing mistakes.
+- For presentations, prepare slides or notes and rehearse out loud.
+- Fit the task to the session length.
+- Use the notes when they help, but never invent page numbers or details.
+
+Return ONLY valid JSON in exactly this format:
+{{"tasks": [{{"id": 1, "task": ""}}]}}
+"""
+    messages = build_messages(prompt, "You are a study coach who writes short, specific study tasks. Return only valid JSON.")
+    request = {
+        "model": CHAT_MODEL,
+        "messages": messages,
+        "format": "json",
+        "options": {"temperature": 0.3}
+    }
+
+    started = time.monotonic()
+    try:
+        try:
+            response = task_client.chat(think=False, **request)
+        except ResponseError as error:
+            if "think" not in str(error).lower():
+                raise
+            response = task_client.chat(**request)
+        data = json.loads(response.message.content)
+        print(f"AI tasks written in {time.monotonic() - started:.1f}s")
+    except Exception as error:
+        print(f"AI tasks skipped after {time.monotonic() - started:.1f}s: {type(error).__name__}")
+        return {}
+
+    tasks = {}
+    for item in data.get("tasks", []) if isinstance(data, dict) else []:
+        if isinstance(item, dict) and str(item.get("task") or "").strip():
+            tasks[_whole_number(item.get("id"), 0)] = str(item["task"]).strip()
+    return tasks
+
+
+def plan_sessions():
+    plan = st.session_state.study_plan or {}
+    return [session for session in plan.get("study_sessions", []) if isinstance(session, dict)]
+
+
+def set_session_done(index, key):
+    session = st.session_state.study_plan["study_sessions"][index]
+    session["done"] = st.session_state[key]
+    session["done_on"] = student_now().date().isoformat() if session["done"] else None
+    save()
+
 
 def plan_day_label(value):
     if not uses_ab_calendar():
@@ -1191,23 +1845,43 @@ def show_calendar_export(sessions, zone_name):
 def generate_plan():
     if not st.session_state.assignments:
         return None
-    student = setup.describe_for_ai(
-        st.session_state.profile,
-        st.session_state.courses,
-        st.session_state.activities,
-        st.session_state.study_style
+
+    # Keep checked-off sessions and only schedule the work that's left.
+    finished = [session for session in plan_sessions() if session.get("done")]
+    finished_minutes = {}
+    for session in finished:
+        match = (session.get("assignment"), session.get("course"))
+        finished_minutes[match] = finished_minutes.get(match, 0) + _whole_number(session.get("minutes"), 0)
+
+    remaining = []
+    for assignment in st.session_state.assignments:
+        match = (assignment.get("name"), assignment.get("course") or "")
+        left = _whole_number(assignment.get("estimated_minutes"), 60) - finished_minutes.get(match, 0)
+        if left > 0:
+            remaining.append({**assignment, "estimated_minutes": left})
+
+    sessions, unscheduled = scheduler.build_plan(
+        remaining,
+        setup.complete_study_style(st.session_state.study_style),
+        setup.normalize_activities(st.session_state.activities),
+        student_now().replace(tzinfo=None),
+        is_school_day_for_student
     )
+
+    tasks = write_tasks(sessions)
+    for number, session in enumerate(sessions, start=1):
+        session["task"] = tasks.get(number) or scheduler.default_task(session)
+
+    all_sessions = finished + [scheduler.public_session(session) for session in sessions]
+    all_sessions.sort(key=lambda session: (session.get("date", ""), session.get("start_time", "")))
+
+    return {
+        "study_sessions": all_sessions,
+        "unscheduled": unscheduled,
+        "created": student_now().isoformat()
+    }
     prompt = f"""
 {date_context(plan_days())}
-
-About the student:
-{student}
-
-The student's assignments are:
-{json.dumps(st.session_state.assignments, indent=4)}
-
-Create a realistic study schedule.
-
 Rules:
 1. Earlier deadlines have higher priority.
 2. Difficult assignments should receive more preparation.
@@ -1231,28 +1905,74 @@ Rules:
     Put review for a course on the evening before it meets, and finish
     homework for a course before its next class day.
 
-Return ONLY valid JSON.
-Use exactly this format:
+# ============================================================
+# ANALYTICS HELPERS
+# ============================================================
 
-{{
-    "study_sessions": [
-        {{
-            "date": "YYYY-MM-DD",
-            "start_time": "16:00",
-            "end_time": "17:00",
-            "course": "",
-            "assignment": "",
-            "task": "",
-            "minutes": 60
-        }}
-    ]
-}}
-"""
-    return ask_ai(
-        prompt,
-        "You are an expert student study scheduler. "
-        "Create realistic schedules and return only valid JSON."
+CARD_HEIGHT = 340
+
+
+def stat_tiles_html(tiles):
+    cards = "".join(
+        f'<div class="stat-tile"><div class="stat-icon" style="background-color:{color}">{icon}</div>'
+        f'<div style="min-width:0"><div class="stat-label">{html.escape(label)}</div>'
+        f'<div class="stat-value">{html.escape(value)}</div></div></div>'
+        for icon, color, label, value in tiles
     )
+    return f'<div class="stat-grid">{cards}</div>'
+
+
+def card_title_html(icon, title):
+    return f'<div class="card-title"><span class="card-icon">{icon}</span>{html.escape(title)}</div>'
+
+
+def course_load_html(rows):
+    if not rows:
+        return '<p class="load-empty">Add courses in Settings to see your course load.</p>'
+
+    parts = []
+    for row in rows:
+        share = row["done"] / row["total"] if row["total"] else 0
+        parts.append(
+            f'<div class="load-row"><div class="load-head"><span>{html.escape(row["course"])}</span>'
+            f'<span class="load-count">{row["done"]}/{row["total"]}</span></div>'
+            f'<div class="load-track"><div class="load-fill" style="width:{share * 100:.0f}%"></div></div></div>'
+        )
+    return "".join(parts)
+
+
+def styled_chart(chart):
+    return (
+        chart.properties(height=230)
+        .configure(background="transparent", font="Inter")
+        .configure_axis(
+            labelColor="#94A3B8",
+            labelFontSize=12,
+            gridColor="#334155",
+            gridDash=[2, 4],
+            domainColor="#475569",
+            tickColor="#475569"
+        )
+        .configure_view(stroke=None)
+    )
+
+
+def horizontal_bars(values, label_field, value_field, color):
+    most = max((value[value_field] for value in values), default=0)
+    base = alt.Chart(alt.Data(values=values)).encode(
+        y=alt.Y(f"{label_field}:N", sort=None, title=None, axis=alt.Axis(labelLimit=170, ticks=False)),
+        x=alt.X(
+            f"{value_field}:Q",
+            title=None,
+            scale=alt.Scale(domain=[0, max(1, most) * 1.15]),
+            axis=alt.Axis(tickMinStep=1, format="d")
+        ),
+        tooltip=[alt.Tooltip(f"{label_field}:N"), alt.Tooltip(f"{value_field}:Q")]
+    )
+    bars = base.mark_bar(color=color, cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height={"band": 0.6})
+    labels = base.mark_text(align="left", dx=6, color="#CBD5E1", fontSize=12).encode(text=f"{value_field}:Q")
+    return bars + labels
+
 
 # ============================================================
 # CHATBOT
@@ -1262,6 +1982,7 @@ CHAT_SYSTEM_PROMPT = """You are StudyFlow AI: a capable, friendly, practical stu
 Help with understanding schoolwork, studying for tests, planning workload, writing, brainstorming, and explaining images of homework or notes.
 Use the conversation history to maintain context. Be honest when you are uncertain, never claim to see an image that was not included, and give clear, useful answers. Format with Markdown only when it improves readability.
 When the student is working on homework, guide them through the steps so they understand how to solve it, instead of only giving the final answer.
+Always write times in 12-hour format with AM or PM (for example 4:30 PM), never in 24-hour format.
 """
 
 ASSIGNMENT_TAG = re.compile(r"<add_assignment>(.*?)</add_assignment>", re.S)
@@ -1281,22 +2002,25 @@ def chat_context():
         if uses_ab_calendar() else ""
     )
     return f"""
-{date_context()}
+    {date_context()}
 
-About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
-{student}
+    About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
+    {student}
 
-The student's current assignments are:
-{json.dumps(st.session_state.assignments, indent=2)}
+    The student's current assignments are:
+    {json.dumps(st.session_state.assignments, indent=2)}
 
-Adding assignments:
-If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
-reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
-in exactly this format:
-<add_assignment>{{"name": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
-- Difficulty must be 1-5. Priority must be Low, Medium, or High.
-- Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
-- Never use these tags for anything else, and never mention them to the student.
+    Adding assignments:
+    If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
+    reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
+    in exactly this format:
+    <add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
+    - Difficulty must be 1-5. Priority must be Low, Medium, or High.
+    - Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
+    - {ASSIGNMENT_NAME_RULE}
+    - {COURSE_RULE}
+    - Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
+    - Never use these tags for anything else, and never mention them to the student.
 """
 
 
@@ -1315,25 +2039,60 @@ def pull_assignment_tags(reply):
             continue
 
         if isinstance(data, dict):
-            added.append(normalize_assignment(data))
+            assignment = normalize_assignment(data)
+            assignment["course"] = guess_course(assignment)
+            added.append(assignment)
 
     clean_reply = UNFINISHED_TAG.sub("", ASSIGNMENT_TAG.sub("", reply)).strip()
     return clean_reply, added
 
 
+def visible_reply(text):
+    text = UNFINISHED_TAG.sub("", ASSIGNMENT_TAG.sub("", text))
+    return re.sub(r"<[a-z_]*$", "", text).strip()
+
+
+def stream_reply(messages, placeholder):
+    for attempt in range(AI_ATTEMPTS):
+        text = ""
+        started = time.monotonic()
+        try:
+            for chunk in stream_model(CHAT_MODEL, messages, CHAT_TEMPERATURE):
+                piece = chunk.message.content or ""
+                if piece:
+                    text += piece
+                    placeholder.markdown(visible_reply(text) + " ▌")
+            print(f"AI {CHAT_MODEL} streamed in {time.monotonic() - started:.1f}s")
+            return text
+        except Exception as error:
+            print(f"AI {CHAT_MODEL} stream failed after {time.monotonic() - started:.1f}s: {type(error).__name__}")
+            if is_timeout(error) and not text and attempt < AI_ATTEMPTS - 1:
+                continue
+            raise
+
+
 def chatbot(message):
     history = st.session_state.messages[-MAX_HISTORY_MESSAGES:]
+    messages = build_messages(chat_context(), CHAT_SYSTEM_PROMPT, conversation=history)
 
-    reply = ask_ai(
-        chat_context(),
-        CHAT_SYSTEM_PROMPT,
-        conversation=history,
-        use_json=False,
-        model=CHAT_MODEL,
-        temperature=CHAT_TEMPERATURE
-    )
+    placeholder = st.empty()
+    placeholder.markdown('<span class="chat-thinking">Thinking…</span>', unsafe_allow_html=True)
+
+    try:
+        reply = stream_reply(messages, placeholder)
+    except Exception as error:
+        placeholder.empty()
+        print("AI REQUEST FAILED:", type(error).__name__, error)
+        if is_timeout(error):
+            st.error("The AI took too long to answer. Please try again in a minute.")
+        else:
+            st.error("Unable to connect to Ollama.")
+            st.code(str(error))
+        return None
 
     if not reply:
+        placeholder.empty()
+        st.error("The AI sent back an empty reply. Please try again.")
         return None
 
     reply, added = pull_assignment_tags(reply)
@@ -1346,8 +2105,11 @@ def chatbot(message):
             reply = f"Added {names} to your assignments."
 
     if not reply:
+        placeholder.empty()
         st.error("The AI sent back an empty reply. Please try again.")
         return None
+
+    placeholder.markdown(reply)
 
     st.session_state.messages.append({
         "role": "assistant",
@@ -1358,7 +2120,7 @@ def chatbot(message):
 
 
 def render_chat_message(message):
-    avatar = LOGO_PATH if message["role"] == "assistant" else "🙂"
+    avatar = LOGO_PATH if message["role"] == "assistant" else ":material/person:"
 
     with st.chat_message(message["role"], avatar=avatar):
         if message.get("content"):
@@ -1368,10 +2130,10 @@ def render_chat_message(message):
             try:
                 st.image(uploads.decode_image(image_data), width=400)
             except Exception:
-                st.caption("📷 This image couldn't be displayed.")
+                st.caption(":material/image_not_supported: This image couldn't be displayed.")
 
         if message.get("had_image") and not message.get("images"):
-            st.caption("📷 An image was attached here (images aren't saved).")
+            st.caption(":material/photo_camera: An image was attached here (images aren't saved).")
 
 
 # ============================================================
@@ -1449,7 +2211,7 @@ def show_setup_wizard():
 
             with back_column:
                 go_back = st.button(
-                    "‹ Back",
+                    ":material/arrow_back: Back",
                     disabled=step == 0,
                     use_container_width=True,
                     key="wizard_back"
@@ -1457,7 +2219,7 @@ def show_setup_wizard():
 
             with next_column:
                 go_next = st.button(
-                    "Finish ✓" if last_step else "Continue ›",
+                    ":material/check: Finish" if last_step else "Continue :material/arrow_forward:",
                     type="primary",
                     use_container_width=True,
                     key="wizard_next"
@@ -1515,36 +2277,36 @@ with st.sidebar:
     )
 
     if SUPABASE is None:
-        st.caption("💾 Saving is off because no database is connected.")
+        st.caption("Saving is off because no database is connected.")
     elif signed_in_with_google():
         st.caption(f"Signed in as **{st.user.get('name') or st.user.get('email')}**")
         if st.button("Sign out"):
             st.logout()
     else:
-        st.caption("💾 Your plan is saved on this browser only.")
+        st.caption("Your plan is saved on this browser only.")
         if google_login_available() and st.button("Sign in with Google"):
             st.login()
 
     st.divider()
-    st.subheader("📋 Your Setup")
+    st.subheader(":material/checklist: Your Setup")
 
     course_count = len(setup.course_names(st.session_state.courses))
     activity_count = len([a for a in st.session_state.activities if a.get("name")])
     routine = st.session_state.study_style
 
     st.caption(
-        f"📚 {course_count} course{'s' if course_count != 1 else ''} · "
-        f"🏃 {activity_count} activit{'ies' if activity_count != 1 else 'y'}"
+        f":material/book: {course_count} course{'s' if course_count != 1 else ''} · "
+        f":material/directions_walk: {activity_count} activit{'ies' if activity_count != 1 else 'y'}"
     )
     st.caption(
-        f"⏰ Homework from {setup.pretty_time(routine.get('homework_start'))}, "
+        f":material/schedule: Homework from {setup.pretty_time(routine.get('homework_start'))}, "
         f"bedtime {setup.pretty_time(routine.get('bed'))}"
     )
-    st.caption("Change these anytime in the ⚙️ Settings tab.")
+    st.caption("Change these anytime in the :material/settings: Settings tab.")
 
     if SUPABASE is not None and st.session_state.get("student_id"):
         st.divider()
-        with st.expander("🔒 Your data"):
+        with st.expander(":material/lock_person: Your data"):
             st.caption(
                 "StudyFlow saves your profile, courses, activities, routine, "
                 "assignments, study plan, and chat messages so they're here "
@@ -1585,13 +2347,13 @@ if uses_ab_calendar() and ab_calendar.in_school_year(now.date()) and now.weekday
 first_name = html.escape((st.session_state.profile.get("name") or "").split(" ")[0])
 
 st.markdown(
-    f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} 👋</div>'
+    f'<div class="greeting">Good {part_of_day}{", " + first_name if first_name else ""} <span class="greeting-icon">waving_hand</span></div>'
     f'<div class="greeting-date">{now:%A, %B} {now.day}{today_label}</div>',
     unsafe_allow_html=True
 )
 
 if "flash" in st.session_state:
-    st.toast(st.session_state.pop("flash"), icon="✅")
+    st.toast(st.session_state.pop("flash"), icon=":material/check_circle:")
 
 st.divider()
 
@@ -1599,13 +2361,17 @@ st.divider()
 # TABS
 # ============================================================
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
+remove_past_assignments()
+fix_general_courses()
+
+tab1, tab2, tab3, analytics_tab, tab4, tab5 = st.tabs(
     [
-        "📝 Assignments",
-        "📅 Study Plan",
-        "💬 AI Assistant",
-        "📇 Flashcards",
-        "⚙️ Settings"
+        ":material/assignment_add: Assignments",
+        ":material/calendar_clock: Study Plan",
+        ":material/chat_bubble: AI Assistant",
+        ":material/insights: Analytics",
+        ":material/style: Flashcards",
+        ":material/settings: Settings"
     ]
 )
 
@@ -1614,84 +2380,74 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
 # ============================================================
 
 with tab1:
-    st.header("📝 Add an Assignment")
+    st.header(":material/edit_note: Add Assignments")
+    st.caption(
+        "Describe your work, upload a photo or PDF of an assignment sheet, "
+        "syllabus, or planner page, or do both. StudyFlow will pull out the "
+        "details so you can check and edit them before anything is added."
+    )
+    form_number = st.session_state.assignment_form
+
     assignment_input = st.text_area(
         "Describe your assignment",
         placeholder=
         "Example: I have an Algebra 2 final next Tuesday. "
-        "It covers chapters 5-8 and I haven't studied yet."
-    )
-    if st.button(
-        "🤖 Analyze Assignment",
-        use_container_width=True
-    ):
-        if not assignment_input.strip():
-            st.warning(
-                "Please enter an assignment first."
-            )
-        else:
-            with st.spinner(
-                "🤖 Analyzing assignment..."
-            ):
-                assignment = analyze_assignment(
-                    assignment_input
-                )
-
-            if assignment:
-                st.session_state.assignments.append(
-                    normalize_assignment(assignment)
-                )
-                save()
-
-                st.success(
-                    "Assignment added!"
-                )
-
-                st.rerun()
-
-    st.subheader("📷 Or upload an assignment sheet")
-    st.caption(
-        "Upload a photo of an assignment sheet, syllabus, or planner page, "
-        "or a PDF. StudyFlow will find the assignments so you can check them "
-        "before adding."
+        "It covers chapters 5-8 and I haven't studied yet.",
+        key=f"assignment_text_{form_number}"
     )
     uploaded_file = st.file_uploader(
-        "Photo or PDF",
+        "Photo or PDF (optional)",
         type=uploads.IMAGE_TYPES + ["pdf"],
-        key="assignment_upload"
+        key=f"assignment_upload_{form_number}"
     )
 
     if st.button(
-        "🔍 Find Assignments",
-        use_container_width=True,
-        disabled=uploaded_file is None
+        "Analyze",
+        use_container_width=True
     ):
-        found = None
-        try:
-            with st.spinner("🤖 Reading your file..."):
-                found = find_assignments_in_upload(uploaded_file)
-        except ValueError as error:
-            st.error(str(error))
+        if not assignment_input.strip() and uploaded_file is None:
+            st.warning(
+                "Describe an assignment or upload a file first."
+            )
+        else:
+            found = None
+            try:
+                with st.spinner(":material/smart_toy: Analyzing..."):
+                    found = extract_assignments(
+                        assignment_input.strip(),
+                        uploaded_file
+                    )
+            except ValueError as error:
+                st.error(str(error))
 
-        if found == []:
-            st.info("I couldn't find any assignments in that file.")
-        elif found:
-            st.session_state.found_assignments = found
-            st.session_state.found_batch += 1
+            if found == []:
+                st.info("I couldn't find any assignments in that. Try adding more detail.")
+            elif found:
+                st.session_state.found_assignments = found
+                st.session_state.found_batch += 1
 
     if st.session_state.found_assignments:
         st.write(
-            "**Here's what I found.** Uncheck anything you don't want "
-            "and fix any mistakes, then add them."
+            "**Here's what I found.** Check every detail and fix anything "
+            "that's wrong, uncheck anything you don't want, then add them."
         )
+        course_options = setup.course_names(st.session_state.courses) + ["General"]
+        for item in st.session_state.found_assignments:
+            if item["course"] not in course_options:
+                course_options.append(item["course"])
+
         edited = st.data_editor(
-            [{"add": True, **item} for item in st.session_state.found_assignments],
+            [
+                {"add": True, **item, "due_date": due_date_value(item["due_date"])}
+                for item in st.session_state.found_assignments
+            ],
             key=f"found_editor_{st.session_state.found_batch}",
             hide_index=True,
             use_container_width=True,
             column_order=[
                 "add",
                 "name",
+                "type",
                 "course",
                 "due_date",
                 "difficulty",
@@ -1701,10 +2457,11 @@ with tab1:
             ],
             column_config={
                 "add": st.column_config.CheckboxColumn("Add?"),
-                "name": st.column_config.TextColumn("Assignment"),
-                "course": st.column_config.TextColumn("Course"),
-                "due_date": st.column_config.TextColumn("Due (YYYY-MM-DD)"),
-                "difficulty": st.column_config.NumberColumn("Difficulty", min_value=1, max_value=5, step=1),
+                "name": st.column_config.TextColumn("Assignment", required=True),
+                "type": st.column_config.SelectboxColumn("Type", options=ASSIGNMENT_TYPES),
+                "course": st.column_config.SelectboxColumn("Course", options=course_options),
+                "due_date": st.column_config.DateColumn("Due date", format="ddd, MMM D, YYYY"),
+                "difficulty": st.column_config.NumberColumn("Difficulty (1-5)", min_value=1, max_value=5, step=1),
                 "estimated_minutes": st.column_config.NumberColumn("Minutes", min_value=5, step=5),
                 "priority": st.column_config.SelectboxColumn("Priority", options=["Low", "Medium", "High"]),
                 "description": st.column_config.TextColumn("Notes")
@@ -1714,16 +2471,23 @@ with tab1:
         add_column, discard_column = st.columns(2)
 
         with add_column:
-            if st.button("✅ Add Selected", type="primary", use_container_width=True):
+            if st.button(":material/check: Add Selected", type="primary", use_container_width=True):
                 chosen = [
-                    normalize_assignment(row)
+                    normalize_assignment({**row, "due_date": due_date_text(row.get("due_date"))})
                     for row in edited
                     if row.get("add")
                 ]
-                st.session_state.assignments.extend(chosen)
-                st.session_state.found_assignments = []
-                save()
-                st.rerun()
+                if not chosen:
+                    st.warning("Check at least one assignment to add, or discard them.")
+                else:
+                    st.session_state.assignments.extend(chosen)
+                    st.session_state.found_assignments = []
+                    st.session_state.assignment_form += 1
+                    st.session_state.flash = (
+                        f"Added {len(chosen)} assignment{'s' if len(chosen) != 1 else ''}!"
+                    )
+                    save()
+                    st.rerun()
 
         with discard_column:
             if st.button("Discard", use_container_width=True):
@@ -1731,7 +2495,7 @@ with tab1:
                 st.rerun()
 
     st.divider()
-    st.header("📚 Current Assignments")
+    st.header("Current Assignments")
     if not st.session_state.assignments:
         st.info(
             "No assignments yet. Add one above!"
@@ -1741,13 +2505,22 @@ with tab1:
         for i, assignment in enumerate(
             st.session_state.assignments
         ):
+            assignment_type = assignment.get("type") or ""
+            is_prep = assignment_type in scheduler.PREP_TYPES
+
             with st.container(border=True):
                 col1, col2, col3 = st.columns(
                     [3, 2, 1]
                 )
                 with col1:
-                    st.subheader(
-                        assignment["name"]
+                    type_label = (
+                        f'<div class="assignment-type">{html.escape(assignment_type.upper())}</div>'
+                        if assignment_type else ""
+                    )
+                    st.markdown(
+                        f'{type_label}<div class="assignment-name">'
+                        f'{html.escape(assignment.get("name", ""))}</div>',
+                        unsafe_allow_html=True
                     )
                     st.write(
                         assignment.get(
@@ -1800,46 +2573,62 @@ with tab1:
 
                 with col2:
                     st.write(
-                        f"📚 **{assignment['course']}**"
+                        f":material/assignment: **{assignment.get('course', 'General')}**"
+                    )
+                    due_label = (
+                        f"{assignment_type.title()} on" if is_prep else "Due"
                     )
                     st.write(
-                        f"📅 Due: "
-                        f"{assignment['due_date']}"
+                        f":material/event_note: {due_label}: "
+                        f"{pretty_due_date(assignment.get('due_date'))}"
                     )
+                    time_label = ":material/local_library: Prep time" if is_prep else ":material/timer: Work time"
                     st.write(
-                        f"⏱️ "
-                        f"{assignment['estimated_minutes']} min"
+                        f"{time_label}: "
+                        f"{assignment.get('estimated_minutes', 60)} min"
                     )
 
                 with col3:
                     st.write(
                         f"Difficulty: "
-                        f"{assignment['difficulty']}/5"
+                        f"{assignment.get('difficulty', 3)}/5"
                     )
 
                     st.write(
                         f"Priority: "
-                        f"{assignment['priority']}"
+                        f"{assignment.get('priority', 'Medium')}"
                     )
 
-                    if st.button(
-                        "🗑️",
-                        key=f"delete_{i}"
-                    ):
-                        st.session_state.assignments.pop(
-                            i
-                        )
-                        save()
-                        st.rerun()
+                    edit_column, delete_column = st.columns(2)
+
+                    with edit_column:
+                        if st.button(
+                            ":material/edit:",
+                            key=f"edit_{i}",
+                            help="Edit"
+                        ):
+                            edit_assignment_dialog(i)
+
+                    with delete_column:
+                        if st.button(
+                            ":material/delete:",
+                            key=f"delete_{i}",
+                            help="Delete"
+                        ):
+                            st.session_state.assignments.pop(
+                                i
+                            )
+                            save()
+                            st.rerun()
 
 # ============================================================
 # STUDY PLAN TAB
 # ============================================================
 
 with tab2:
-    st.header("📅 Your Study Plan")
+    st.header(":material/calendar_month: Your Study Plan")
     if st.button(
-        "✨ Generate Study Plan",
+        ":material/auto_awesome: Generate Study Plan",
         use_container_width=True
     ):
         if not st.session_state.assignments:
@@ -1848,7 +2637,7 @@ with tab2:
             )
         else:
             with st.spinner(
-                "🤖 Building your personalized study plan..."
+                ":material/smart_toy: Building your personalized study plan..."
             ):
                 plan = generate_plan()
             if plan:
@@ -1865,49 +2654,84 @@ with tab2:
         )
         zone_name = st.session_state.profile.get("timezone") or APP_TIMEZONE
 
-        for session in sessions:
+        for item in st.session_state.study_plan.get("unscheduled", []):
+            st.warning(
+                f"Couldn't fit {item.get('minutes', '')} min of **{item.get('assignment', '')}**: "
+                f"{item.get('reason', '')}. Try raising your max study per day "
+                "or turning on weekend studying in :material/settings: Settings."
+            )
+
+        hide_done = False
+        if not sessions:
+            st.info("There was no free time to schedule before your due dates.")
+        else:
+            done_count = sum(1 for session in sessions if isinstance(session, dict) and session.get("done"))
+            st.progress(
+                done_count / len(sessions),
+                text=f"{done_count} of {len(sessions)} study sessions done"
+            )
+            hide_done = st.toggle("Hide finished sessions", key="hide_done_sessions")
+
+        plan_key = st.session_state.study_plan.get("created", "")
+
+        for index, session in enumerate(sessions):
             if not isinstance(session, dict):
                 continue
+            is_done = bool(session.get("done"))
+            if is_done and hide_done:
+                continue
             with st.container(border=True):
-                col1, col2, col3 = st.columns(
-                    [1.5, 2, 4]
+                check_column, col1, col2, col3 = st.columns(
+                    [0.5, 1.5, 2, 4]
                 )
+                with check_column:
+                    done_key = f"session_done_{plan_key}_{index}"
+                    st.checkbox(
+                        "Done",
+                        value=is_done,
+                        key=done_key,
+                        on_change=set_session_done,
+                        args=(index, done_key),
+                        label_visibility="collapsed",
+                        help="Check this off when you finish the session"
+                    )
                 with col1:
                     st.write(
-                        f"📅 **{session.get('date', '')}**"
+                        f":material/event: **{session.get('date', '')}**"
                     )
                     day_label = plan_day_label(session.get("date"))
                     if day_label:
                         st.caption(day_label)
                     st.write(
-                        f"⏰ "
-                        f"{session.get('start_time', '')} - "
-                        f"{session.get('end_time', '')}"
+                        f":material/schedule: "
+                        f"{setup.pretty_time(session.get('start_time'))} - "
+                        f"{setup.pretty_time(session.get('end_time'))}"
                     )
                 with col2:
                     st.write(
-                        f"📚 **{session.get('course', '')}**"
+                        f":material/menu_book: **{session.get('course', '')}**"
                     )
                     st.write(
-                        f"📝 {session.get('assignment', '')}"
+                        f":material/assignment: {session.get('assignment', '')}"
                     )
 
                 with col3:
+                    task = session.get("task", "")
                     st.write(
-                        f"**Task:** "
-                        f"{session.get('task', '')}"
+                        f":material/check_circle: **Done:** ~~{task}~~" if is_done
+                        else f":material/checklist: **What to do:** {task}"
                     )
                     st.caption(
                         f"{session.get('minutes', '')} minutes"
                     )
                     google_link = calendar_export.google_calendar_link(session, zone_name)
                     if google_link:
-                        st.markdown(f"[➕ Add to Google Calendar]({google_link})")
+                        st.markdown(f":material/calendar_add_on: [Add to Google Calendar]({google_link})")
 
         show_calendar_export(sessions, zone_name)
 
         with st.expander(
-            "📄 View Raw Study Plan"
+            ":material/data_object: View Raw Study Plan"
         ):
             st.json(
                 st.session_state.study_plan
@@ -1925,14 +2749,14 @@ with tab2:
 
 with tab3:
     st.markdown('<div class="chat-kicker">Your study sidekick</div>', unsafe_allow_html=True)
-    st.header("💬 StudyFlow AI")
+    st.header(":material/forum: StudyFlow AI")
     st.markdown(
         '<p class="chat-subtitle">Ask about a tough topic, plan your week, '
         'or attach a photo of a problem for a step-by-step explanation.</p>',
         unsafe_allow_html=True
     )
 
-    if st.session_state.messages and st.button("🗑️ Clear chat"):
+    if st.session_state.messages and st.button(":material/delete: Clear chat"):
         st.session_state.messages = []
         save()
         st.rerun()
@@ -1988,16 +2812,12 @@ with tab3:
                 assignment_count = len(st.session_state.assignments)
 
                 with st.chat_message("assistant", avatar=LOGO_PATH):
-                    with st.spinner("Thinking…"):
-                        reply = chatbot(message_text)
+                    chatbot(message_text)
 
                     save()
 
                     if len(st.session_state.assignments) > assignment_count:
                         st.rerun()
-
-                    if reply:
-                        st.markdown(reply)
 
     components.html(
         """
@@ -2030,10 +2850,209 @@ with tab3:
                 event.preventDefault();
             };
             doc.addEventListener('copy', doc.__studyflowCopyHandler);
+
+            // Keep the chat scrolled to the newest message while the AI Assistant tab is open.
+            const chatInput = () => doc.querySelector('[data-testid="stChatInput"]');
+            let scrollQueued = false;
+            const scrollChat = () => {
+                scrollQueued = false;
+                const input = chatInput();
+                if (!input || !input.getClientRects().length) return;
+                input.scrollIntoView({ block: 'end' });
+            };
+            // Use the page's animation frame: this hidden iframe's own frames are throttled.
+            const queueScroll = () => {
+                if (scrollQueued) return;
+                scrollQueued = true;
+                window.parent.requestAnimationFrame(scrollChat);
+            };
+
+            if (doc.__studyflowChatObserver) {
+                doc.__studyflowChatObserver.disconnect();
+            }
+            doc.__studyflowChatObserver = new MutationObserver((mutations) => {
+                const input = chatInput();
+                const panel = input && input.closest('[role="tabpanel"]');
+                if (panel && mutations.some((mutation) => panel.contains(mutation.target))) {
+                    queueScroll();
+                }
+            });
+            doc.__studyflowChatObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
+
+            // Tab clicks don't bubble up to the document, so listen in the capture phase.
+            if (doc.__studyflowTabClick) {
+                doc.removeEventListener('click', doc.__studyflowTabClick, true);
+            }
+            doc.__studyflowTabClick = (event) => {
+                if (event.target.closest('[role="tab"]')) setTimeout(queueScroll, 100);
+            };
+            doc.addEventListener('click', doc.__studyflowTabClick, true);
+            queueScroll();
         </script>
         """,
         height=0
     )
+    
+# ============================================================
+# ANALYTICS TAB
+# ============================================================
+
+with analytics_tab:
+    st.header(":material/insights: Analytics")
+    st.markdown(
+        '<p class="chat-subtitle">Your study insights this week. '
+        'Check off sessions in the Study Plan tab as you finish them.</p>',
+        unsafe_allow_html=True
+    )
+
+    sessions = plan_sessions()
+    assignments = st.session_state.assignments
+    today = student_now().date()
+
+    if not sessions and not assignments:
+        st.info(
+            "Add assignments and generate a study plan to see your analytics here."
+        )
+    else:
+        stats = analytics.totals(sessions)
+        week = analytics.minutes_by_day(sessions, today)
+        streak = analytics.streak(sessions, today)
+
+        st.markdown(
+            stat_tiles_html([
+                ("schedule", "#3B82F6", "Study time (7d)",
+                 analytics.pretty_minutes(sum(day["minutes"] for day in week))),
+                ("check_circle", "#10B981", "Completed",
+                 f"{stats['done']} / {stats['total']}"),
+                ("local_fire_department", "#F97316", "Day streak",
+                 f"{streak} day{'s' if streak != 1 else ''}"),
+                ("adjust", "#8B5CF6", "Avg per task",
+                 analytics.pretty_minutes(analytics.average_minutes(sessions)))
+            ]),
+            unsafe_allow_html=True
+        )
+
+        missed = analytics.missed(sessions, today)
+        if missed:
+            st.caption(
+                f":material/warning: {len(missed)} past session{'s' if len(missed) != 1 else ''} "
+                f"{'weren' if len(missed) != 1 else 'wasn'}'t checked off. "
+                "Regenerate your study plan to fit that work back in."
+            )
+
+        hours_column, subject_column = st.columns(2)
+
+        with hours_column:
+            with st.container(border=True, height=CARD_HEIGHT):
+                st.markdown(card_title_html("bar_chart", "Study Hours (Last 7 Days)"), unsafe_allow_html=True)
+                values = [
+                    {
+                        "Day": f"{day['day']:%a}",
+                        "Date": f"{day['day']:%a, %b} {day['day'].day}",
+                        "Hours": round(day["minutes"] / 60, 2),
+                        "Minutes": day["minutes"]
+                    }
+                    for day in week
+                ]
+                most = max(value["Hours"] for value in values)
+                chart = (
+                    alt.Chart(alt.Data(values=values))
+                    .mark_bar(color="#8B5CF6", cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": 0.6})
+                    .encode(
+                        x=alt.X("Day:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
+                        y=alt.Y(
+                            "Hours:Q",
+                            title=None,
+                            scale=alt.Scale(domain=[0, max(1, most)], nice=True),
+                            axis=alt.Axis(tickMinStep=0.5)
+                        ),
+                        tooltip=[
+                            alt.Tooltip("Date:N"),
+                            alt.Tooltip("Minutes:Q", title="Minutes studied")
+                        ]
+                    )
+                )
+                st.altair_chart(styled_chart(chart), use_container_width=True, theme=None)
+                if not stats["done"]:
+                    st.caption("Check off study sessions to fill this in.")
+
+        with subject_column:
+            with st.container(border=True, height=CARD_HEIGHT):
+                st.markdown(card_title_html("pie_chart", "Assignments by Subject"), unsafe_allow_html=True)
+                subjects = analytics.assignments_by_subject(assignments)
+                if subjects:
+                    values = [{"Subject": row["course"], "Assignments": row["count"]} for row in subjects]
+                    st.altair_chart(
+                        styled_chart(horizontal_bars(values, "Subject", "Assignments", "#3987E5")),
+                        use_container_width=True,
+                        theme=None
+                    )
+                else:
+                    st.caption("No assignments yet.")
+
+        difficulty_column, load_column = st.columns(2)
+
+        with difficulty_column:
+            with st.container(border=True, height=CARD_HEIGHT):
+                st.markdown(card_title_html("signal_cellular_alt", "Difficulty Breakdown"), unsafe_allow_html=True)
+                if assignments:
+                    values = [
+                        {"Difficulty": row["label"], "Assignments": row["count"]}
+                        for row in analytics.difficulty_breakdown(assignments)
+                    ]
+                    st.altair_chart(
+                        styled_chart(horizontal_bars(values, "Difficulty", "Assignments", "#D95926")),
+                        use_container_width=True,
+                        theme=None
+                    )
+                else:
+                    st.caption("No assignments yet.")
+
+        with load_column:
+            with st.container(border=True, height=CARD_HEIGHT):
+                st.markdown(card_title_html("menu_book", "Course Load"), unsafe_allow_html=True)
+                load = analytics.course_load(sessions, setup.course_names(st.session_state.courses))
+                st.markdown(course_load_html(load), unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown(card_title_html("event_upcoming", "Coming Up (Next 7 Days)"), unsafe_allow_html=True)
+            upcoming = analytics.upcoming_deadlines(assignments, today)
+            if not upcoming:
+                st.caption("Nothing is due in the next 7 days.")
+            for assignment in upcoming:
+                days_left = assignment["days_left"]
+                when = (
+                    "today" if days_left == 0
+                    else "tomorrow" if days_left == 1
+                    else f"in {days_left} days"
+                )
+                st.write(
+                    f":material/event_note: **{assignment.get('name', '')}** · "
+                    f"{assignment.get('course', 'General')} · due {when} "
+                    f"({pretty_due_date(assignment.get('due_date'))})"
+                )
+
+        with st.expander(":material/table: Show the numbers as tables"):
+            st.dataframe(
+                [{"Day": f"{day['day']:%A, %b} {day['day'].day}", "Minutes studied": day["minutes"]} for day in week],
+                hide_index=True,
+                use_container_width=True
+            )
+            st.dataframe(
+                [
+                    {
+                        "Course": row["course"],
+                        "Sessions done": row["done"],
+                        "Sessions planned": row["total"],
+                        "Minutes done": row["done_minutes"],
+                        "Minutes planned": row["total_minutes"]
+                    }
+                    for row in load
+                ],
+                hide_index=True,
+                use_container_width=True
+            )
+
 
 # ============================================================
 # FLASHCARDS TAB
@@ -2150,7 +3169,7 @@ with tab4:
 # ============================================================
 
 with tab5:
-    st.header("⚙️ Settings")
+    st.header(":material/settings: Settings")
     st.markdown(
         '<p class="chat-subtitle">Edit your profile, courses, and study preferences.</p>',
         unsafe_allow_html=True
@@ -2158,16 +3177,16 @@ with tab5:
 
     profile_tab, courses_tab, activities_tab, style_tab = st.tabs(
         [
-            "👤 Profile",
-            "📚 Courses",
-            "🏃 Activities",
-            "✨ Study Style"
+            ":material/account_circle: Profile",
+            ":material/book: Courses",
+            ":material/directions_walk: Activities",
+            ":material/wand_shine: Study Style"
         ]
     )
 
     with profile_tab:
         profile_values = render_setup_section(0, "settings")
-        if st.button("💾 Save profile", type="primary", key="save_profile_button"):
+        if st.button("Save profile", type="primary", key="save_profile_button"):
             if not profile_values["name"]:
                 st.warning("Please enter your name.")
             else:
@@ -2178,7 +3197,7 @@ with tab5:
 
     with courses_tab:
         course_values = render_setup_section(1, "settings")
-        if st.button("💾 Save courses", type="primary", key="save_courses_button"):
+        if st.button("Save courses", type="primary", key="save_courses_button"):
             commit_setup_section(1, course_values, "settings")
             save()
             st.session_state.flash = "Courses saved"
@@ -2186,7 +3205,7 @@ with tab5:
 
     with activities_tab:
         activity_values = render_setup_section(2, "settings")
-        if st.button("💾 Save activities", type="primary", key="save_activities_button"):
+        if st.button("Save activities", type="primary", key="save_activities_button"):
             commit_setup_section(2, activity_values, "settings")
             save()
             st.session_state.flash = "Activities saved"
@@ -2197,7 +3216,7 @@ with tab5:
         routine_values = render_setup_section(3, "settings")
         st.subheader("Study Preferences")
         preference_values = render_setup_section(4, "settings")
-        if st.button("💾 Save study style", type="primary", key="save_style_button"):
+        if st.button("Save study style", type="primary", key="save_style_button"):
             commit_setup_section(3, {**routine_values, **preference_values}, "settings")
             save()
             st.session_state.flash = "Study style saved"
