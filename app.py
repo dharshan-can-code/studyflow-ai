@@ -645,6 +645,9 @@ if "found_assignments" not in st.session_state:
 if "found_batch" not in st.session_state:
     st.session_state.found_batch = 0
 
+if 'card_idxs' not in st.session_state:
+    st.session_state.card_idxs = []
+
 #st.session_state.flashcard_sets = []
 
 def prepare_saved_data():
@@ -1783,7 +1786,12 @@ with tab1:
                             )
                             set = list(st.session_state.flashcard_sets[-1].items())
                             set.insert(1, ('priority', assignment.get('priority')))
+                            set.insert(-1,('known', {}))
                             st.session_state.flashcard_sets[-1] = dict(set)
+                        else:
+                            st.warning(
+                                f"Flashcards for {assignment.get('name')} already exist!"
+                            )
                             
                                 
 
@@ -2028,25 +2036,47 @@ with tab3:
 # FLASHCARDS TAB
 # ============================================================
 
-st.html('''<style>
+st.html(f'''<style>
 
-.st-key-flashcard {
+{', '.join('.st-key-flashcard_' + str(set) for set in range(len(st.session_state.flashcard_sets)))} {{
+    align-items: center !important;
+    justify-content: center !important;
+}}
+
+{', '.join('.st-key-flashcard_' + str(set) + ' div button' for set in range(len(st.session_state.flashcard_sets)))} {{
     border: 0.5px solid #161C2F !important;
     border-radius: 8px !important;
     height: 500px !important;
     display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
+}}
 
-    .st-key-flashcard span {
-    font-size: 24pt !important;
-}
+{', '.join('.st-key-ik_' + str(set) for set in range(len(st.session_state.flashcard_sets)))}, {', '.join('.st-key-idk_' + str(set) for set in range(len(st.session_state.flashcard_sets)))} {{
+    border: 0.5px solid #161C2F !important;
+    border-radius: 8px !important;
+}}
+
+{', '.join('.st-key-ik_' + str(set) + ' div button div span' for set in range(len(st.session_state.flashcard_sets)))} {{
+    color: lime;
+    font-size: 25pt !important;
+}}
+
+{', '.join('.st-key-idk_' + str(set) + ' div button div span' for set in range(len(st.session_state.flashcard_sets)))} {{
+    color: red;
+    font-size: 25pt !important;
+}}
+
+{', '.join('.st-key-flashcard_' + str(set) + ' div button div span span div' for set in range(len(st.session_state.flashcard_sets)))} {{
+    font-size: 25pt !important;
+    padding: 50px !important;
+}}
 
 </style>''')
 
-if 'card_idxs' not in st.session_state:
-    st.session_state.card_idxs = []
+def finished_set(set):
+    st.success("✅ You've finished this set of flashcards! You can add more in the 📝 Assignments tab.")
+    if st.button('📇 Practice again'):
+        st.session_state.flashcard_sets[0].update(st.session_state.flashcard_sets[set]['known'].pop())
+
 
 with tab4:
     st.header("📇 Flashcards")
@@ -2055,33 +2085,61 @@ with tab4:
             "No flashcards yet. Add some in the 📝 Assignments tab."
         )
     else:
-        with st.expander(
-            st.session_state.flashcard_sets[0].get('assignment')
-            ):
-            try:
-                side = st.session_state.card_idxs[0][2] + 0
-            except:
-                side = 0
-            try:
-                card_idx = st.session_state.card_idxs[0][1] + 0
-            except:
-                card_idx = 0
-            side = fcard.draw(side, list(st.session_state.flashcard_sets[0])[card_idx + 2], list(st.session_state.flashcard_sets[0].values())[card_idx + 2])
-            if len(st.session_state.card_idxs) == 0:
-                prev_side = st.session_state.card_idxs[0][2]
-                st.session_state.card_idxs.insert(0, [0, card_idx, side])
-            elif len(st.session_state.card_idxs) > 0:
-                prev_side = st.session_state.card_idxs[0][2]
-                st.session_state.card_idxs[0] = [0, card_idx, side]
-            else:
-                for i in range(0 - len(st.session_state.card_idxs)):
-                    st.session_state.card_idxs.insert(i, None, None, None)
-                prev_side = st.session_state.card_idxs[0][2]
-                st.session_state.card_idxs[0] = [0, card_idx, side]
-            st.json(st.session_state.card_idxs)
-            st.json(st.session_state.flashcard_sets[0])
-            if side != prev_side:
-                st.rerun()
+        for set in range(0, len(st.session_state.flashcard_sets)):
+            with st.expander(
+                st.session_state.flashcard_sets[set].get('assignment')
+                ):
+                try:
+                    side = st.session_state.card_idxs[set][2] + 0
+                except:
+                    side = 0
+                try:
+                    card_idx = st.session_state.card_idxs[set][1] + 0
+                except:
+                    card_idx = 0
+                
+                if type(list(st.session_state.flashcard_sets[set].keys())[card_idx + 2]) is not dict:
+                    side = fcard.draw(
+                    side, 
+                    list(st.session_state.flashcard_sets[set])[card_idx + 2], 
+                    list(st.session_state.flashcard_sets[set].values())[card_idx + 2],
+                    set
+                    )
+                    idk, ik = st.columns(2)
+                    if idk.button(icon=":material/close:", label='', width='stretch', type='tertiary', key=f'idk_{set}'):
+                        card_idx += 1
+                        side = 0
+                    if ik.button(icon=":material/check:", label='', width='stretch', type='tertiary', key=f'ik_{set}'):    
+                        card = list(st.session_state.flashcard_sets[set].values())[card_idx + 2]
+                        card_key = list(st.session_state.flashcard_sets[set].keys())[card_idx + 2]
+                        st.session_state.flashcard_sets[set].pop(list(st.session_state.flashcard_sets[set])[card_idx + 2])
+                        st.session_state.flashcard_sets[set]['known'].update({
+                            card_key: card
+                        })
+                        side = 0
+                    if len(st.session_state.card_idxs) == set:
+                        prev_side = 0
+                        st.session_state.card_idxs.insert(set, [set, card_idx, side])
+                    elif len(st.session_state.card_idxs) > set:
+                        prev_side = st.session_state.card_idxs[set][2]
+                        st.session_state.card_idxs[set] = [set, card_idx, side]
+                    else:
+                        for i in range(set - len(st.session_state.card_idxs)):
+                            st.session_state.card_idxs.insert(i, [None, None, None])
+                        prev_side = st.session_state.card_idxs[set][2]
+                        st.session_state.card_idxs[set] = [set, card_idx, side]
+                    if side != prev_side:
+                        st.rerun()
+                else:
+                    finished_set(set)
+                
+                with st.expander("📄 View raw JSON data"):    
+                    st.json(st.session_state.flashcard_sets[set])
+                if st.button("🗑️ Delete this set", type="secondary", key=f'delete_set_{set}'):
+                    del st.session_state.flashcard_sets[set]
+                    st.session_state.card_idxs[set] = [None, None, None]
+                    st.rerun()
+
 
 
 # ============================================================
