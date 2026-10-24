@@ -289,6 +289,14 @@ def is_test(name, kind=""):
 
 
 def default_task(session):
+    task = _default_steps(session)
+    notes = str(session.get("description") or "").strip()
+    if len(notes) > 120:
+        notes = notes[:117].rstrip() + "..."
+    return f"{task} ({notes})" if notes else task
+
+
+def _default_steps(session):
     part = session.get("part", 1)
     parts = session.get("parts", 1)
 
