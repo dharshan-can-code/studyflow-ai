@@ -618,6 +618,8 @@ LOGO_PATH = "assets/studyflow_logo.png"
 
 APP_TIMEZONE = "America/New_York"
 
+REGION = 'Virginia'
+
 MAX_HISTORY_MESSAGES = 50
 
 GUEST_COOKIE = "studyflow_guest_token"
@@ -1753,12 +1755,13 @@ with tab1:
                             ""
                         )
                     )
-                    state = "Virginia" #change later
+                    
                     if st.button(
                         "📇 Create Flashcards",
                         key=f"flashcards_create_{i}"
                     ):
                         set_is_unique = True
+                        state = st.session_state.profile.get('region') or 'Virginia'
                         st.session_state.flashcard_sets.append(
                             ask_ai(
                                 f"""
