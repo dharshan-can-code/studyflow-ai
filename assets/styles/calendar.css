@@ -1,0 +1,233 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600&display=swap');
+
+/* ============================================================
+   PAGE
+   ============================================================ */
+
+html,
+body {
+    background: transparent !important;
+    color: #E2E8F0;
+    font-family: 'Inter', sans-serif;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+}
+
+
+/* ============================================================
+   CALENDAR
+   ============================================================ */
+
+.fc {
+    --fc-border-color: rgba(148, 163, 184, 0.16);
+    --fc-page-bg-color: transparent;
+    --fc-neutral-bg-color: rgba(30, 41, 59, 0.6);
+    --fc-neutral-text-color: #94A3B8;
+    --fc-today-bg-color: rgba(20, 184, 166, 0.07);
+    --fc-now-indicator-color: #F43F5E;
+    --fc-highlight-color: rgba(45, 212, 191, 0.15);
+    --fc-list-event-hover-bg-color: rgba(20, 184, 166, 0.12);
+    --fc-event-border-color: transparent;
+    --fc-button-text-color: #E2E8F0;
+    --fc-button-bg-color: #1E293B;
+    --fc-button-border-color: #334155;
+    --fc-button-hover-bg-color: #334155;
+    --fc-button-hover-border-color: #475569;
+    --fc-button-active-bg-color: #0F766E;
+    --fc-button-active-border-color: #0F766E;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    background: rgba(10, 20, 30, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.fc .fc-toolbar.fc-header-toolbar {
+    margin-bottom: 12px;
+    gap: 8px;
+}
+
+.fc .fc-toolbar-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #F8FAFC;
+}
+
+.fc .fc-button {
+    border-radius: 8px;
+    font-weight: 500;
+    text-transform: none;
+    padding: 0.35rem 0.75rem;
+    box-shadow: none !important;
+}
+
+.fc .fc-button-primary:disabled {
+    opacity: 0.45;
+}
+
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number,
+.fc .fc-list-day-text,
+.fc .fc-list-day-side-text {
+    color: #CBD5E1;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.fc .fc-day-today .fc-col-header-cell-cushion,
+.fc .fc-day-today .fc-daygrid-day-number {
+    color: #2DD4BF;
+    font-weight: 700;
+}
+
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-timegrid-axis-cushion {
+    color: #94A3B8;
+    font-size: 0.75rem;
+}
+
+.fc .fc-timegrid-slot {
+    height: 2.4em;
+}
+
+.fc .fc-timegrid-slot-minor {
+    border-top-style: dotted;
+}
+
+
+/* ============================================================
+   EVENTS
+   ============================================================ */
+
+.fc-event {
+    cursor: pointer;
+}
+
+.fc-event.sf-session {
+    border-radius: 6px;
+    padding: 1px 3px;
+    font-weight: 500;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.fc-event.sf-session .fc-event-main {
+    color: #FFFFFF;
+}
+
+.fc-event.sf-done {
+    opacity: 0.45;
+}
+
+.fc-event.sf-done .fc-event-title {
+    text-decoration: line-through;
+}
+
+.fc-event.sf-due {
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.fc-event.sf-busy {
+    background: repeating-linear-gradient(135deg, rgba(51, 65, 85, 0.75), rgba(51, 65, 85, 0.75) 6px, rgba(30, 41, 59, 0.75) 6px, rgba(30, 41, 59, 0.75) 12px) !important;
+    border: 1px solid #334155 !important;
+    border-radius: 6px;
+    cursor: default;
+}
+
+.fc-event.sf-busy .fc-event-main,
+.fc-event.sf-busy .fc-event-title,
+.fc-event.sf-busy .fc-event-time {
+    color: #CBD5E1 !important;
+}
+
+.fc-event.sf-ab {
+    background: transparent !important;
+    border: 1px dashed #475569 !important;
+    border-radius: 6px;
+    cursor: default;
+}
+
+.fc-event.sf-ab .fc-event-main,
+.fc-event.sf-ab .fc-event-title {
+    color: #94A3B8 !important;
+    font-weight: 500;
+}
+
+.fc .fc-daygrid-more-link {
+    color: #2DD4BF;
+}
+
+.fc .fc-popover {
+    background: #111C33;
+    border-color: #334155;
+}
+
+.fc .fc-popover-header {
+    background: #1E293B;
+    color: #F8FAFC;
+}
+
+
+/* ============================================================
+   LIST VIEW
+   ============================================================ */
+
+.fc .fc-list {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.fc-theme-standard .fc-list-day-cushion {
+    background: rgba(30, 41, 59, 0.9) !important;
+}
+
+.fc .fc-list-event:hover td {
+    background: rgba(20, 184, 166, 0.12) !important;
+}
+
+.fc .fc-list-event-title,
+.fc .fc-list-event-time {
+    color: #E2E8F0;
+}
+
+.fc .fc-list-empty {
+    background: transparent;
+    color: #94A3B8;
+}
+
+
+/* ============================================================
+   PHONES
+   ============================================================ */
+
+@media (max-width: 640px) {
+    .fc {
+        padding: 10px;
+        font-size: 0.8rem;
+    }
+
+    .fc .fc-toolbar.fc-header-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .fc .fc-toolbar-title {
+        font-size: 1rem;
+    }
+
+    .fc .fc-button {
+        padding: 0.3rem 0.55rem;
+    }
+}

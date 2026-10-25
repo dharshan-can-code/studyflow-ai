@@ -779,6 +779,11 @@ div[data-baseweb="select"] {
     border: 1px solid #334155 !important;
 }
 
+iframe[title*="calendar"] {
+    border-radius: 14px;
+    color-scheme: normal;
+}
+
 [data-testid="stTooltipContent"] {
     background-color: #1E293B !important;
     color: #F8FAFC !important;
