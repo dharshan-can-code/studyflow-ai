@@ -15,6 +15,7 @@ from streamlit_cookies_controller import CookieController
 from studyflow.data import storage, uploads
 from studyflow.exports import calendar_export, reminder_email
 from studyflow.planning import ab_calendar, analytics, scheduler
+from studyflow.planning import events as calendar_events
 from studyflow.ui import flashcard_display as fcard
 from studyflow.ui import glass_background
 from studyflow.ui import plan_calendar
@@ -32,6 +33,7 @@ import sys
 HELPER_MODULES = [
     "studyflow.data.fcps_courses",
     "studyflow.planning.ab_calendar",
+    "studyflow.planning.events",
     "studyflow.data.uploads",
     "studyflow.data.storage",
     "studyflow.planning.scheduler",
@@ -1348,13 +1350,163 @@ def is_phone():
     return any(word in agent for word in ("Mobi", "Android", "iPhone"))
 
 
+def one_time_events():
+    availability = st.session_state.availability if isinstance(st.session_state.availability, dict) else {}
+    return calendar_events.normalize_events(availability.get("events"))
+
+
+def save_one_time_events(event_list):
+    availability = dict(st.session_state.availability) if isinstance(st.session_state.availability, dict) else {}
+    availability["events"] = calendar_events.normalize_events(event_list)
+    st.session_state.availability = availability
+    save()
+
+
+def event_time_label(event):
+    day = due_date_value(event["date"])
+    when = "All day" if event["all_day"] else f"{setup.pretty_time(event['start'])} - {setup.pretty_time(event['end'])}"
+    return f"{day:%a, %b} {day.day} · {when}" if day else when
+
+
+def overlap_note(event):
+    sessions = (st.session_state.study_plan or {}).get("study_sessions", [])
+    count = len(calendar_events.overlapping_sessions(event, sessions))
+    if not count:
+        return ""
+    return (
+        f"This overlaps {count} study session{'s' if count != 1 else ''}. "
+        "Drag the session somewhere else, or generate your study plan again."
+    )
+
+
+def event_form(key, defaults):
+    name = st.text_input(
+        "Event",
+        value=defaults.get("name", ""),
+        placeholder="Dentist appointment, away game, family dinner...",
+        key=f"{key}_name"
+    )
+    all_day = st.toggle("All day", value=bool(defaults.get("all_day")), key=f"{key}_all_day")
+
+    date_column, start_column, end_column = st.columns([2, 1, 1])
+    with date_column:
+        day = st.date_input(
+            "Date",
+            value=defaults.get("date") or student_now().date(),
+            format="MM/DD/YYYY",
+            key=f"{key}_date"
+        )
+    start = end = None
+    if not all_day:
+        with start_column:
+            start = st.time_input(
+                "Starts",
+                value=setup.to_time(defaults.get("start") or "16:00"),
+                step=300,
+                format="12h",
+                key=f"{key}_start"
+            )
+        with end_column:
+            end = st.time_input(
+                "Ends",
+                value=setup.to_time(defaults.get("end") or "17:00"),
+                step=300,
+                format="12h",
+                key=f"{key}_end"
+            )
+    return {"name": name.strip(), "date": day, "start": start, "end": end, "all_day": all_day}
+
+
+def add_event_from_form(values):
+    if not values["name"]:
+        st.warning("Give the event a name.")
+        return False
+    if not values["all_day"] and values["end"] <= values["start"]:
+        st.warning("The event has to end after it starts.")
+        return False
+
+    event = calendar_events.new_event(
+        values["name"],
+        f"{values['date']:%Y-%m-%d}",
+        f"{values['start']:%H:%M}" if values["start"] else None,
+        f"{values['end']:%H:%M}" if values["end"] else None,
+        values["all_day"]
+    )
+    save_one_time_events(one_time_events() + [event])
+    note = overlap_note(event)
+    if note:
+        st.session_state.flash = f"Added {event['name']}. {note}"
+    elif st.session_state.study_plan:
+        st.session_state.flash = f"Added {event['name']}. Generate your study plan again to plan around it."
+    else:
+        st.session_state.flash = f"Added {event['name']}. Your study plan will work around it."
+    return True
+
+
+def delete_event(event_id):
+    save_one_time_events([event for event in one_time_events() if event["id"] != event_id])
+    if st.session_state.get("calendar_selected") == ("event", event_id):
+        st.session_state.calendar_selected = None
+
+
+def show_event_manager():
+    upcoming = calendar_events.upcoming(one_time_events(), student_now().date())
+
+    with st.expander(":material/event_busy: One-time events"):
+        st.caption(
+            "Appointments, games, trips: anything that only happens once. "
+            "Your study plan works around them. You can also click or drag on the calendar to add one."
+        )
+        for event in upcoming:
+            with st.container(key=f"event_row_{event['id']}"):
+                text_column, delete_column = st.columns([6, 1])
+                with text_column:
+                    st.markdown(f"**{html.escape(event['name'])}** · {event_time_label(event)}")
+                with delete_column:
+                    st.button(
+                        ":material/delete:",
+                        key=f"event_delete_{event['id']}",
+                        help="Delete this event",
+                        type="tertiary",
+                        on_click=delete_event,
+                        args=(event["id"],)
+                    )
+
+        form = st.session_state.get("event_form", 0)
+        values = event_form(f"event_form_{form}", {})
+        if st.button(":material/add: Add event", key=f"event_add_{form}", type="primary"):
+            if add_event_from_form(values):
+                st.session_state.event_form = form + 1
+                st.rerun()
+
+
+def show_new_event_form():
+    pending = st.session_state.get("pending_event")
+    if not pending:
+        return
+
+    with st.container(border=True, key="calendar_new_event"):
+        st.subheader(":material/event: New event")
+        values = event_form(f"pending_event_{pending['key']}", pending)
+        save_column, cancel_column = st.columns(2)
+        with save_column:
+            if st.button("Add event", type="primary", use_container_width=True, key=f"pending_save_{pending['key']}"):
+                if add_event_from_form(values):
+                    st.session_state.pending_event = None
+                    st.rerun()
+        with cancel_column:
+            if st.button("Cancel", use_container_width=True, key=f"pending_cancel_{pending['key']}"):
+                st.session_state.pending_event = None
+                st.rerun()
+
+
 def show_plan_calendar(zone_name):
     plan_sessions_list = st.session_state.study_plan.get("study_sessions", [])
     revision = st.session_state.get("calendar_revision", 0)
 
     st.caption(
         ":material/drag_pan: Drag a session to move it, or drag its bottom edge to change how long it is. "
-        "Click a session to see what to do."
+        "Click a session to see what to do, or click an empty spot to add an event."
     )
     state = plan_calendar.show(
         plan_sessions_list,
@@ -1365,7 +1517,8 @@ def show_plan_calendar(zone_name):
         student_now().replace(tzinfo=None),
         uses_ab_calendar(),
         is_phone(),
-        revision
+        revision,
+        one_time_events()
     )
 
     action = plan_calendar.read_action(state)
@@ -1388,7 +1541,34 @@ def show_plan_calendar(zone_name):
             st.rerun()
         elif action["type"] == "select":
             st.session_state.calendar_selected = (action["kind"], index)
+            st.session_state.pending_event = None
+        elif action["type"] == "new_event":
+            st.session_state.pending_event = {
+                "key": st.session_state.get("pending_count", 0),
+                "date": action["date"],
+                "start": action["start"].strftime("%H:%M") if action["start"] else None,
+                "end": action["end"].strftime("%H:%M") if action["end"] else None,
+                "all_day": action["all_day"]
+            }
+            st.session_state.pending_count = st.session_state.pending_event["key"] + 1
+            st.session_state.calendar_selected = None
+        elif action["type"] == "move_event":
+            moved = None
+            event_list = one_time_events()
+            for event in event_list:
+                if event["id"] == action["id"]:
+                    event["date"] = f"{action['date']:%Y-%m-%d}"
+                    event["all_day"] = action["all_day"]
+                    if not action["all_day"]:
+                        event["start"] = action["start"].strftime("%H:%M")
+                        event["end"] = action["end"].strftime("%H:%M")
+                    moved = event
+            if moved:
+                save_one_time_events(event_list)
+                st.session_state.calendar_selected = ("event", moved["id"])
+                st.toast(f"Moved {moved['name']} to {event_time_label(moved)}", icon=":material/event:")
 
+    show_new_event_form()
     show_calendar_details(zone_name)
 
 
@@ -1426,6 +1606,24 @@ def show_calendar_details(zone_name):
             google_link = calendar_export.google_calendar_link(session, zone_name)
             if google_link:
                 st.markdown(f":material/calendar_add_on: [Add to Google Calendar]({google_link})")
+
+    elif kind == "event":
+        event = next((item for item in one_time_events() if item["id"] == index), None)
+        if not event:
+            return
+        with st.container(border=True, key="calendar_details"):
+            st.subheader(f":material/event_busy: {event['name']}")
+            st.caption(f"One-time event · {event_time_label(event)}")
+            note = overlap_note(event)
+            if note:
+                st.warning(note, icon=":material/warning:")
+            st.caption("Drag it on the calendar to change the time, or drag its bottom edge to change how long it is.")
+            st.button(
+                ":material/delete: Delete event",
+                key=f"calendar_delete_event_{event['id']}",
+                on_click=delete_event,
+                args=(event["id"],)
+            )
 
     elif kind == "due":
         assignments = st.session_state.assignments
@@ -1521,7 +1719,8 @@ def generate_plan():
     sessions, unscheduled = scheduler.build_plan(
         remaining,
         setup.complete_study_style(st.session_state.study_style),
-        setup.normalize_activities(st.session_state.activities),
+        setup.normalize_activities(st.session_state.activities)
+        + calendar_events.as_busy_blocks(one_time_events()),
         student_now().replace(tzinfo=None),
         is_school_day_for_student
     )
@@ -2436,6 +2635,7 @@ with tab1:
 
 with tab2:
     st.header(":material/calendar_month: Your Study Plan")
+    show_event_manager()
     if st.button(
         ":material/auto_awesome: Generate Study Plan",
         use_container_width=True

@@ -11,7 +11,7 @@ from studyflow.planning import ab_calendar
 STYLE_FILE = Path(__file__).resolve().parents[2] / "assets" / "styles" / "calendar.css"
 COURSE_COLORS = ["#0F766E", "#1D4ED8", "#7C3AED", "#B45309", "#BE185D", "#15803D", "#C2410C", "#4338CA"]
 DUE_COLOR = "#9F1239"
-CALLBACKS = ["eventClick", "eventChange"]
+CALLBACKS = ["eventClick", "eventChange", "select"]
 DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 WEEKS_AHEAD = 6
 
@@ -124,6 +124,23 @@ def _activity_events(activities, first, last):
     return events
 
 
+def _one_time_events(one_time):
+    events = []
+    for item in one_time:
+        event = {
+            "id": f"event-{item['id']}",
+            "title": item["name"],
+            "classNames": ["sf-event"],
+            "extendedProps": {"kind": "event", "event_id": item["id"]}
+        }
+        if item["all_day"]:
+            event.update({"start": item["date"], "allDay": True})
+        else:
+            event.update({"start": f"{item['date']}T{item['start']}:00", "end": f"{item['date']}T{item['end']}:00"})
+        events.append(event)
+    return events
+
+
 def _ab_events(first, last):
     events = []
     day = first
@@ -143,14 +160,19 @@ def _ab_events(first, last):
     return events
 
 
-def build_events(sessions, assignments, activities, courses, today, use_ab):
+def build_events(sessions, assignments, activities, courses, today, use_ab, one_time=()):
     colors = course_colors(courses, sessions, assignments)
     days = [_parse_day(s.get("date")) for s in sessions if isinstance(s, dict)]
     days = [day for day in days if day]
     first = min(days + [today]) - timedelta(days=7)
     last = max(days + [today + timedelta(weeks=WEEKS_AHEAD)]) + timedelta(days=7)
 
-    events = _session_events(sessions, colors) + _due_events(assignments) + _activity_events(activities, first, last)
+    events = (
+        _session_events(sessions, colors)
+        + _due_events(assignments)
+        + _activity_events(activities, first, last)
+        + _one_time_events(one_time)
+    )
     if use_ab:
         events += _ab_events(first, last)
     return events
@@ -185,6 +207,8 @@ def _options(now, study_style, mobile, first_session):
         "now": f"{now:%Y-%m-%dT%H:%M:%S}",
         "nowIndicator": True,
         "editable": True,
+        "selectable": True,
+        "selectMirror": True,
         "eventStartEditable": True,
         "eventDurationEditable": True,
         "snapDuration": "00:15:00",
@@ -205,8 +229,8 @@ def _options(now, study_style, mobile, first_session):
     }
 
 
-def show(sessions, assignments, activities, courses, study_style, now, use_ab, mobile, revision):
-    events = build_events(sessions, assignments, activities, courses, now.date(), use_ab)
+def show(sessions, assignments, activities, courses, study_style, now, use_ab, mobile, revision, one_time=()):
+    events = build_events(sessions, assignments, activities, courses, now.date(), use_ab, one_time)
     for event in events:
         event["extendedProps"]["revision"] = revision
 
@@ -249,11 +273,37 @@ def read_action(state):
         props = event.get("extendedProps") or {}
         if props.get("kind") in ("session", "due"):
             return {"type": "select", "kind": props["kind"], "index": props.get("index")}
+        if props.get("kind") == "event":
+            return {"type": "select", "kind": "event", "index": props.get("event_id")}
         return None
+
+    if state["callback"] == "select":
+        picked = state.get("select") or {}
+        start = _wall_time(picked.get("start"))
+        end = _wall_time(picked.get("end"))
+        if not start:
+            return None
+        if picked.get("allDay"):
+            return {"type": "new_event", "date": start.date(), "start": None, "end": None, "all_day": True}
+        if not end or end <= start:
+            end = start + timedelta(hours=1)
+        if end.date() != start.date():
+            end = datetime.combine(start.date(), datetime.max.time()).replace(second=0, microsecond=0)
+        return {"type": "new_event", "date": start.date(), "start": start, "end": end, "all_day": False}
 
     if state["callback"] == "eventChange":
         event = (state.get("eventChange") or {}).get("event") or {}
         props = event.get("extendedProps") or {}
+        if props.get("kind") == "event":
+            start = _wall_time(event.get("start"))
+            end = _wall_time(event.get("end"))
+            if not start:
+                return {"type": "revert"}
+            if event.get("allDay"):
+                return {"type": "move_event", "id": props.get("event_id"), "date": start.date(), "start": None, "end": None, "all_day": True}
+            if not end or end <= start:
+                end = start + timedelta(hours=1)
+            return {"type": "move_event", "id": props.get("event_id"), "date": start.date(), "start": start, "end": end, "all_day": False}
         if props.get("kind") != "session":
             return {"type": "revert"}
         start = _wall_time(event.get("start"))

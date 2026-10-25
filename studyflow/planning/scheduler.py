@@ -79,7 +79,10 @@ def _blocked(day, style, activities):
 
     weekday = DAY_SHORT[day.weekday()]
     for activity in activities or []:
-        if weekday not in (activity.get("days") or []):
+        if activity.get("date"):
+            if activity["date"] != f"{day:%Y-%m-%d}":
+                continue
+        elif weekday not in (activity.get("days") or []):
             continue
         start = _minutes(activity.get("start"))
         end = _minutes(activity.get("end"))

@@ -4,13 +4,6 @@
    PAGE
    ============================================================ */
 
-html,
-body {
-    background: transparent !important;
-    color: #E2E8F0;
-    font-family: 'Inter', sans-serif;
-}
-
 ::-webkit-scrollbar {
     width: 8px;
 }
@@ -48,9 +41,7 @@ body {
     --fc-button-active-border-color: #0F766E;
     font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
-    background: rgba(10, 20, 30, 0.88);
-    border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 14px;
+    background: #0A141E;
     padding: 14px;
 }
 
@@ -151,6 +142,24 @@ body {
 .fc-event.sf-busy .fc-event-title,
 .fc-event.sf-busy .fc-event-time {
     color: #CBD5E1 !important;
+}
+
+.fc-event.sf-event {
+    background: #475569 !important;
+    border: 1px solid #64748B !important;
+    border-left: 4px solid #F59E0B !important;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.fc-event.sf-event .fc-event-main,
+.fc-event.sf-event .fc-event-title,
+.fc-event.sf-event .fc-event-time {
+    color: #F8FAFC !important;
+}
+
+.fc .fc-highlight {
+    background: rgba(45, 212, 191, 0.18);
 }
 
 .fc-event.sf-ab {
