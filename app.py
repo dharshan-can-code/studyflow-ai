@@ -17,6 +17,7 @@ from studyflow.exports import calendar_export, reminder_email
 from studyflow.planning import ab_calendar, analytics, scheduler
 from studyflow.ui import flashcard_display as fcard
 from studyflow.ui import glass_background
+from studyflow.ui import plan_calendar
 from studyflow.ui import setup_forms as setup
 
 import importlib
@@ -39,7 +40,8 @@ HELPER_MODULES = [
     "studyflow.ui.setup_forms",
     "studyflow.planning.analytics",
     "studyflow.ui.flashcard_display",
-    "studyflow.ui.glass_background"
+    "studyflow.ui.glass_background",
+    "studyflow.ui.plan_calendar"
 ]
 
 
@@ -1332,6 +1334,172 @@ def set_session_done(index, key):
 
 
 
+PLAN_VIEWS = {
+    "Calendar": ":material/calendar_month: Calendar",
+    "List": ":material/view_agenda: List"
+}
+
+
+def is_phone():
+    try:
+        agent = st.context.headers.get("User-Agent", "")
+    except Exception:
+        agent = ""
+    return any(word in agent for word in ("Mobi", "Android", "iPhone"))
+
+
+def show_plan_calendar(zone_name):
+    plan_sessions_list = st.session_state.study_plan.get("study_sessions", [])
+    revision = st.session_state.get("calendar_revision", 0)
+
+    st.caption(
+        ":material/drag_pan: Drag a session to move it, or drag its bottom edge to change how long it is. "
+        "Click a session to see what to do."
+    )
+    state = plan_calendar.show(
+        plan_sessions_list,
+        st.session_state.assignments,
+        st.session_state.activities,
+        setup.course_names(st.session_state.courses),
+        st.session_state.study_style,
+        student_now().replace(tzinfo=None),
+        uses_ab_calendar(),
+        is_phone(),
+        revision
+    )
+
+    action = plan_calendar.read_action(state)
+    if action:
+        index = action.get("index")
+        valid = isinstance(index, int) and 0 <= index < len(plan_sessions_list)
+        if action["type"] == "move" and valid:
+            plan_calendar.move_session(plan_sessions_list[index], action["start"], action["end"])
+            save()
+            st.session_state.calendar_selected = ("session", index)
+            moved_to = action["start"]
+            st.toast(
+                f"Moved to {moved_to:%a, %b} {moved_to.day} at {setup.pretty_time(moved_to.strftime('%H:%M'))}",
+                icon=":material/event:"
+            )
+        elif action["type"] in ("move", "revert"):
+            st.session_state.calendar_revision = revision + 1
+            if action.get("reason") == "all_day":
+                st.session_state.flash = "Study sessions need a time. Drag it onto a time slot instead."
+            st.rerun()
+        elif action["type"] == "select":
+            st.session_state.calendar_selected = (action["kind"], index)
+
+    show_calendar_details(zone_name)
+
+
+def show_calendar_details(zone_name):
+    selected = st.session_state.get("calendar_selected")
+    if not selected:
+        return
+    kind, index = selected
+
+    if kind == "session":
+        all_sessions = st.session_state.study_plan.get("study_sessions", [])
+        if not isinstance(index, int) or not 0 <= index < len(all_sessions):
+            return
+        session = all_sessions[index]
+        day = due_date_value(session.get("date"))
+        day_label = plan_day_label(session.get("date"))
+        details = [
+            session.get("course") or "",
+            f"{day:%A, %b} {day.day}" if day else "",
+            f"{setup.pretty_time(session.get('start_time'))} - {setup.pretty_time(session.get('end_time'))}",
+            f"{session.get('minutes', '')} min",
+            day_label
+        ]
+
+        with st.container(border=True, key="calendar_details"):
+            st.subheader(f":material/menu_book: {session.get('assignment') or 'Study session'}")
+            st.caption(" · ".join(part for part in details if part))
+            st.write(f":material/checklist: **What to do:** {session.get('task') or 'Work on this assignment.'}")
+
+            done_key = f"calendar_done_{st.session_state.study_plan.get('created', '')}_{index}"
+            if st.session_state.get(done_key) != bool(session.get("done")):
+                st.session_state[done_key] = bool(session.get("done"))
+            st.toggle("Mark as done", key=done_key, on_change=set_session_done, args=(index, done_key))
+
+            google_link = calendar_export.google_calendar_link(session, zone_name)
+            if google_link:
+                st.markdown(f":material/calendar_add_on: [Add to Google Calendar]({google_link})")
+
+    elif kind == "due":
+        assignments = st.session_state.assignments
+        if not isinstance(index, int) or not 0 <= index < len(assignments):
+            return
+        assignment = assignments[index]
+        with st.container(border=True, key="calendar_details"):
+            st.subheader(f":material/assignment: {assignment.get('name') or 'Assignment'}")
+            st.caption(
+                f"{assignment.get('course') or 'General'} · "
+                f"{(assignment.get('type') or 'due').title()} on {pretty_due_date(assignment.get('due_date'))}"
+            )
+            if assignment.get("description"):
+                st.write(assignment["description"])
+
+
+def show_session_list(sessions, zone_name, hide_done):
+    plan_key = st.session_state.study_plan.get("created", "")
+
+    for index, session in enumerate(sessions):
+        if not isinstance(session, dict):
+            continue
+        is_done = bool(session.get("done"))
+        if is_done and hide_done:
+            continue
+        with st.container(border=True, key=f"session_card_{index}"):
+            check_column, col1, col2, col3 = st.columns(
+                [0.5, 1.5, 2, 4]
+            )
+            with check_column:
+                done_key = f"session_done_{plan_key}_{index}"
+                st.checkbox(
+                    "Done",
+                    value=is_done,
+                    key=done_key,
+                    on_change=set_session_done,
+                    args=(index, done_key),
+                    label_visibility="collapsed",
+                    help="Check this off when you finish the session"
+                )
+            with col1:
+                st.write(
+                    f":material/event: **{session.get('date', '')}**"
+                )
+                day_label = plan_day_label(session.get("date"))
+                if day_label:
+                    st.caption(day_label)
+                st.write(
+                    f":material/schedule: "
+                    f"{setup.pretty_time(session.get('start_time'))} - "
+                    f"{setup.pretty_time(session.get('end_time'))}"
+                )
+            with col2:
+                st.write(
+                    f":material/menu_book: **{session.get('course', '')}**"
+                )
+                st.write(
+                    f":material/assignment: {session.get('assignment', '')}"
+                )
+
+            with col3:
+                task = session.get("task", "")
+                st.write(
+                    f":material/check_circle: **Done:** ~~{task}~~" if is_done
+                    else f":material/checklist: **What to do:** {task}"
+                )
+                st.caption(
+                    f"{session.get('minutes', '')} minutes"
+                )
+                google_link = calendar_export.google_calendar_link(session, zone_name)
+                if google_link:
+                    st.markdown(f":material/calendar_add_on: [Add to Google Calendar]({google_link})")
+
+
 def generate_plan():
     if not st.session_state.assignments:
         return None
@@ -2302,7 +2470,6 @@ with tab2:
                 "or turning on weekend studying in Settings."
             )
 
-        hide_done = False
         if not sessions:
             st.info("There was no free time to schedule before your due dates.")
         else:
@@ -2311,63 +2478,19 @@ with tab2:
                 done_count / len(sessions),
                 text=f"{done_count} of {len(sessions)} study sessions done"
             )
-            hide_done = st.toggle("Hide finished sessions", key="hide_done_sessions")
-
-        plan_key = st.session_state.study_plan.get("created", "")
-
-        for index, session in enumerate(sessions):
-            if not isinstance(session, dict):
-                continue
-            is_done = bool(session.get("done"))
-            if is_done and hide_done:
-                continue
-            with st.container(border=True, key=f"session_card_{index}"):
-                check_column, col1, col2, col3 = st.columns(
-                    [0.5, 1.5, 2, 4]
-                )
-                with check_column:
-                    done_key = f"session_done_{plan_key}_{index}"
-                    st.checkbox(
-                        "Done",
-                        value=is_done,
-                        key=done_key,
-                        on_change=set_session_done,
-                        args=(index, done_key),
-                        label_visibility="collapsed",
-                        help="Check this off when you finish the session"
-                    )
-                with col1:
-                    st.write(
-                        f":material/event: **{session.get('date', '')}**"
-                    )
-                    day_label = plan_day_label(session.get("date"))
-                    if day_label:
-                        st.caption(day_label)
-                    st.write(
-                        f":material/schedule: "
-                        f"{setup.pretty_time(session.get('start_time'))} - "
-                        f"{setup.pretty_time(session.get('end_time'))}"
-                    )
-                with col2:
-                    st.write(
-                        f":material/menu_book: **{session.get('course', '')}**"
-                    )
-                    st.write(
-                        f":material/assignment: {session.get('assignment', '')}"
-                    )
-
-                with col3:
-                    task = session.get("task", "")
-                    st.write(
-                        f":material/check_circle: **Done:** ~~{task}~~" if is_done
-                        else f":material/checklist: **What to do:** {task}"
-                    )
-                    st.caption(
-                        f"{session.get('minutes', '')} minutes"
-                    )
-                    google_link = calendar_export.google_calendar_link(session, zone_name)
-                    if google_link:
-                        st.markdown(f":material/calendar_add_on: [Add to Google Calendar]({google_link})")
+            view = st.segmented_control(
+                "View",
+                ["Calendar", "List"],
+                default="Calendar",
+                format_func=lambda option: PLAN_VIEWS[option],
+                key="plan_view",
+                label_visibility="collapsed"
+            )
+            if view == "List":
+                hide_done = st.toggle("Hide finished sessions", key="hide_done_sessions")
+                show_session_list(sessions, zone_name, hide_done)
+            else:
+                show_plan_calendar(zone_name)
 
         show_calendar_export(sessions, zone_name)
 
