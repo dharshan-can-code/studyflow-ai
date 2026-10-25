@@ -780,7 +780,11 @@ div[data-baseweb="select"] {
 }
 
 iframe[title*="calendar"] {
+    height: 722px !important;
+    background-color: #0A141E;
+    border: 1px solid rgba(148, 163, 184, 0.14) !important;
     border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
     color-scheme: normal;
 }
 
@@ -903,6 +907,28 @@ iframe[title*="calendar"] {
 
     .welcome-card {
         padding: 1rem;
+    }
+
+    iframe[title*="calendar"] {
+        height: 642px !important;
+    }
+
+    [class*="st-key-event_row_"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        align-items: center;
+    }
+
+    [class*="st-key-event_row_"] [data-testid="stColumn"] {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    [class*="st-key-event_row_"] [data-testid="stColumn"]:first-child {
+        flex: 1 1 0 !important;
+    }
+
+    [class*="st-key-event_row_"] [data-testid="stColumn"]:last-child {
+        flex: 0 0 40px !important;
     }
 
     [class*="st-key-fc_card_"] .stButton button {
