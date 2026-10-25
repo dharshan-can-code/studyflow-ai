@@ -120,3 +120,32 @@ def save_student(supabase, student_id, data):
 
 def delete_student(supabase, student_id):
     supabase.table("students").delete().eq("id", student_id).execute()
+
+
+# ============================================================
+# EMAIL REMINDERS
+# ============================================================
+
+def save_reminders(supabase, student_id, reminders):
+    current = _find_one(supabase, "id", student_id) or {}
+    stored = current.get("reminders") or {}
+    merged = {**reminders, "last_sent": stored.get("last_sent")}
+    supabase.table("students").update({"reminders": merged}).eq("id", student_id).execute()
+    return merged
+
+
+def unsubscribe(supabase, token):
+    if not token or len(token) < 16:
+        return False
+    rows = (
+        supabase.table("students")
+        .select("id, reminders")
+        .eq("reminders->>token", token)
+        .execute()
+        .data
+    )
+    for row in rows:
+        reminders = {**(row.get("reminders") or {}), "enabled": False}
+        supabase.table("students").update({"reminders": reminders}).eq("id", row["id"]).execute()
+    return bool(rows)
+
