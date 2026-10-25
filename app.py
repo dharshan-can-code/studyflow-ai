@@ -62,7 +62,7 @@ st.markdown(f"""
 
 .stApp {{
     background-color: {st.session_state.ui_prefs[0]};
-    color: #F8FAFC;
+    color: {st.session_state.ui_prefs[4]};
 }}
 
 
@@ -76,7 +76,7 @@ st.markdown(f"""
 
 
 .main .block-container {{
-    color: #F8FAFC;
+    color: {st.session_state.ui_prefs[4]};
 }}
 
 
@@ -85,7 +85,7 @@ st.markdown(f"""
    ============================================================ */
 
 p {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
     font-family: 'Inter', sans-serif !important;
 }}
 
@@ -105,7 +105,7 @@ small {{
 
 h1, h2, h3 {{
     font-family: 'Sora', sans-serif !important;
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 
@@ -123,7 +123,7 @@ h1, h2, h3 {{
 }}
 
 .studyflow-title .brand-name {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
     font-family: 'Sixtyfour', monospace !important;
 }}
 
@@ -151,7 +151,7 @@ h1, h2, h3 {{
 
 .stTextInput input {{
     background-color: #1E293B !important;
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 
     border: none !important;
     border-radius: 10px !important;
@@ -177,7 +177,7 @@ h1, h2, h3 {{
 
 .stTextArea textarea {{
     background-color: #1E293B !important;
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 
     border: none !important;
     border-radius: 10px !important;
@@ -203,14 +203,14 @@ h1, h2, h3 {{
 
 .stSelectbox [data-baseweb="select"] > div {{
     background-color: #1E293B !important;
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 
     border: none !important;
     border-radius: 10px !important;
 }}
 
 .stSelectbox [data-baseweb="select"] span {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 
@@ -232,7 +232,7 @@ h1, h2, h3 {{
 }}
 
 .stButton button:hover {{
-    background-color: {shift_rgb(st.session_state.ui_prefs[1], 19, 6, -1)} !important;
+    background-color: {shift_rgb(st.session_state.ui_prefs[1], 0, -10, 10)} !important;
     color: #FFFFFF !important;
 }}
 
@@ -255,7 +255,7 @@ label[data-selected="true"] > div:not([data-testid="stWidgetLabel"]) {{
    ============================================================ */
 
 [data-testid="stSidebar"] {{
-    background-color: #111C33 !important;
+    background-color: {st.session_state.ui_prefs[3]} !important;
 }}
 
 [data-testid="stSidebar"] * {{
@@ -265,7 +265,7 @@ label[data-selected="true"] > div:not([data-testid="stWidgetLabel"]) {{
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 [data-testid="stSidebar"] label {{
@@ -303,7 +303,7 @@ label[data-selected="true"] > div:not([data-testid="stWidgetLabel"]) {{
 
 hr {{
     border: none !important;
-    border-top: 1px solid #1E293B !important;
+    border-top: 1px solid {shift_rgb(st.session_state.ui_prefs[0], -5, -14, 6)} !important;
 }}
 
 
@@ -343,7 +343,7 @@ hr {{
 [data-testid="stChatMessage"] blockquote,
 [data-testid="stChatMessage"] h4,
 [data-testid="stChatMessage"] h5 {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 [data-testid="stChatMessage"] li::marker {{
@@ -352,7 +352,7 @@ hr {{
 
 [data-testid="stChatInput"] {{
     background: #18233d !important;
-    border: 1px solid {st.session_state.ui_prefs[1]}58 !important;
+    border: 1px solid {st.session_state.ui_prefs[1]}40 !important;
     border-radius: 15px !important;
 }}
 
@@ -362,7 +362,7 @@ hr {{
 }}
 
 [data-testid="stChatInput"] textarea {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
     background: transparent !important;
     border: none !important;
 }}
@@ -393,8 +393,8 @@ hr {{
 }}
 
 .welcome-card {{
-    background: linear-gradient(115deg, {shift_rgb(st.session_state.ui_prefs[1], -19, -6, 1)}40, rgba(30, 41, 72, .75));
-    border: 1px solid {shift_rgb(st.session_state.ui_prefs[1], -6, 1, -19)}40;
+    background: linear-gradient(115deg, {shift_rgb(st.session_state.ui_prefs[1], 0, 10, -10)}40, rgba(30, 41, 72, .75));
+    border: 1px solid {st.session_state.ui_prefs[1]}40;
     border-radius: 18px;
     padding: 1.15rem 1.25rem;
     margin: .5rem 0 1.5rem;
@@ -424,6 +424,10 @@ div[data-baseweb="select"] {{
     border: none !important;
 }}
 
+div.stTooltipContent {{
+    background-color: {st.session_state.ui_prefs[3]}
+}}
+
 
 /* ============================================================
    FILE UPLOADER
@@ -443,7 +447,7 @@ div[data-baseweb="select"] {{
 
 [data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {{
     background-color: #334155 !important;
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
     border: none !important;
 }}
 
@@ -456,7 +460,7 @@ div[data-baseweb="select"] {{
     font-family: 'Sora', sans-serif;
     font-size: 26px;
     font-weight: 600;
-    color: #F8FAFC;
+    color: {st.session_state.ui_prefs[4]};
     margin-top: 4px;
 }}
 
@@ -500,7 +504,7 @@ div[data-baseweb="select"] {{
     font-family: 'Sora', sans-serif;
     font-size: 1.5rem;
     font-weight: 600;
-    color: #F8FAFC;
+    color: {st.session_state.ui_prefs[4]};
     margin-bottom: 0.5rem;
 }}
 
@@ -555,7 +559,7 @@ div[data-baseweb="select"] {{
     font-family: 'Sora', sans-serif;
     font-size: 22px;
     font-weight: 600;
-    color: #F8FAFC;
+    color: {st.session_state.ui_prefs[4]};
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -569,7 +573,7 @@ div[data-baseweb="select"] {{
     font-family: 'Sora', sans-serif;
     font-size: 17px;
     font-weight: 600;
-    color: #F8FAFC;
+    color: {st.session_state.ui_prefs[4]};
 }}
 
 .card-icon {{
@@ -635,7 +639,7 @@ div[data-baseweb="select"] {{
 
 .stButton button[kind="tertiary"]:hover {{
     background: transparent !important;
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 [data-testid="stProgressBarTrack"],
@@ -656,7 +660,7 @@ div[data-baseweb="select"] {{
 [data-testid="stTimeInput"] [data-baseweb="input"],
 [data-testid="stDateInput"] [data-baseweb="input"] {{
     background-color: #1E293B !important;
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
     border-radius: 10px !important;
 }}
 
@@ -665,7 +669,7 @@ div[data-baseweb="select"] {{
 [data-testid="stTimeInput"] input,
 [data-testid="stTimeInputTimeDisplay"] *,
 [data-testid="stDateInput"] input {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
     background-color: transparent !important;
 }}
 
@@ -675,7 +679,7 @@ div[data-baseweb="select"] {{
 }}
 
 [data-testid="stDialog"] button[aria-label="Close"] {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 .chat-thinking {{
@@ -698,7 +702,7 @@ div[data-baseweb="select"] {{
 
 [data-testid="stNumberInputContainer"] button {{
     background-color: #334155 !important;
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 [role="listbox"],
@@ -709,7 +713,7 @@ div[data-baseweb="select"] {{
 
 [role="option"],
 [role="option"] * {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 [role="option"]:hover,
@@ -744,7 +748,7 @@ div[data-baseweb="select"] {{
 [data-testid="stButtonGroup"] button[aria-checked="true"] p,
 [data-testid="stButtonGroup"] button[data-selected="true"] p,
 [data-testid="stButtonGroup"] button[kind$="Active"] p {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 
@@ -766,7 +770,7 @@ div[data-baseweb="select"] {{
 }}
 
 [data-testid="stSidebarCollapseButton"] button {{
-    color: #F8FAFC !important;
+    color: {st.session_state.ui_prefs[4]} !important;
 }}
 
 [data-testid="stSidebarCollapseButton"] button span {{
@@ -3016,6 +3020,15 @@ with tab4:
     .st-key-theme_toggle > div > label:not([data-selected="true"]) > div {{
         background-color: {st.session_state.ui_prefs[1]}
     }}
+
+    .st-key-reset_ui_button button {{
+        background-color: #f16363 !important;
+    }}
+
+    div:has(> .st-key-reset_ui_button) {{
+        align-items: flex-end;
+    }}
+
 </style>
         ''')
         #light, toggle, dark = st.columns(3)
@@ -3037,10 +3050,16 @@ with tab4:
             secondary_background_color = st.color_picker("Secondary background color", value=st.session_state.ui_prefs[3], width='stretch')
         with text_color_column:
             text_color = st.color_picker("Text color", value=st.session_state.ui_prefs[4], width='stretch')
-        if st.button("Save UI preferences", type="primary", key="save_ui_button"):
-            st.session_state.ui_prefs = [background_color, accent_color, 'dark', secondary_background_color, text_color]
-            st.session_state.flash = "UI preferences saved"
-            st.rerun()
+        st.space()
+        save, reset = st.columns(2)
+        with save:
+            if st.button("Save UI preferences", type="primary", key="save_ui_button"):
+                st.session_state.ui_prefs = [background_color, accent_color, 'dark', secondary_background_color, text_color]
+                st.rerun()
+        with reset:
+            if st.button("Reset", type="primary", key="reset_ui_button"):
+                st.session_state.ui_prefs = ['#0f172a', '#6366f1', 'dark', '#111c33', '#f8fafc']
+                st.rerun()
 
 # ============================================================
 # FOOTER
