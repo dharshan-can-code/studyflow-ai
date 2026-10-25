@@ -10,12 +10,14 @@ from zoneinfo import ZoneInfo
 from ollama import Client, ResponseError
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
+import flashcard_display as fcard
 import colorsys as csys
 import tomlkit
 
 import ab_calendar
 import analytics
 import calendar_export
+import reminder_email
 import scheduler
 import setup_forms as setup
 import storage
@@ -316,6 +318,14 @@ hr {{
 
     border: none !important;
     border-radius: 12px !important;
+}}
+
+/* ============================================================
+   EXTENDERS
+   ============================================================ */
+
+details:open summary {{
+    background-color: #0f172a !important;
 }}
 
 
@@ -687,10 +697,12 @@ div.stTooltipContent {{
     font-style: italic;
 }}
 
+[data-testid="stCaptionContainer"] a,
 [data-testid="stMarkdownContainer"] a {{
     color: #A78BFA !important;
 }}
 
+[data-testid="stCaptionContainer"] a:hover,
 [data-testid="stMarkdownContainer"] a:hover {{
     color: #C4B5FD !important;
 }}
@@ -828,6 +840,8 @@ LOGO_PATH = "assets/studyflow_logo.png"
 
 APP_TIMEZONE = "America/New_York"
 
+REGION = 'Virginia'
+
 MAX_HISTORY_MESSAGES = 50
 
 GUEST_COOKIE = "studyflow_guest_token"
@@ -849,12 +863,19 @@ for field, empty in storage.SAVED_FIELDS.items():
     if field not in st.session_state:
         st.session_state[field] = empty()
 
+if "reminders" not in st.session_state:
+    st.session_state.reminders = {}
+
 if "found_assignments" not in st.session_state:
     st.session_state.found_assignments = []
 
 if "found_batch" not in st.session_state:
     st.session_state.found_batch = 0
 
+if 'card_idxs' not in st.session_state:
+    st.session_state.card_idxs = []
+
+#st.session_state.flashcard_sets = []
 if "assignment_form" not in st.session_state:
     st.session_state.assignment_form = 0
 
@@ -864,6 +885,7 @@ def prepare_saved_data():
     st.session_state.activities = setup.normalize_activities(st.session_state.activities)
     st.session_state.profile = setup.complete_profile(st.session_state.profile)
     st.session_state.study_style = setup.complete_study_style(st.session_state.study_style)
+    st.session_state.flashcard_sets = []
 
 
 if "data_prepared" not in st.session_state:
@@ -1014,6 +1036,7 @@ def load_student():
 
     for field, value in storage.saved_data(student).items():
         st.session_state[field] = value
+    st.session_state.reminders = student.get("reminders") or {}
 
     prepare_saved_data()
     setup.reset_form_state()
@@ -1045,6 +1068,7 @@ def save():
 
 def delete_my_data():
     storage.delete_student(SUPABASE, st.session_state.student_id)
+    st.session_state.reminders = {}
 
     for field, empty in storage.SAVED_FIELDS.items():
         st.session_state[field] = empty()
@@ -1058,6 +1082,40 @@ def delete_my_data():
 
 
 COOKIE_SLOT = st.container()
+
+
+def handle_unsubscribe():
+    token = st.query_params.get("unsubscribe")
+    if not token:
+        return
+
+    supabase = storage.get_supabase()
+    try:
+        done = supabase is not None and storage.unsubscribe(supabase, token)
+    except Exception as error:
+        print("UNSUBSCRIBE FAILED:", error)
+        done = False
+
+    st.markdown(
+        """
+        <div class="studyflow-title">
+            <span class="brand-name">StudyFlow</span>
+            <span class="brand-ai"> AI</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    if done:
+        st.success("You won't get any more reminder emails. You can turn them back on in Settings anytime.")
+    else:
+        st.warning("That link didn't work. You can turn reminders off in Settings, under Reminders.")
+    if st.button("Open StudyFlow", type="primary"):
+        st.query_params.clear()
+        st.rerun()
+    st.stop()
+
+
+handle_unsubscribe()
 
 SUPABASE = load_student()
 
@@ -1110,6 +1168,18 @@ def date_context(days=14):
         lines.append(f"- {day:%A} {day:%Y-%m-%d}" + (f" ({note})" if note else ""))
 
     return "\n".join(lines)
+
+
+def plan_days():
+    today = student_now().date()
+    latest = today
+    for assignment in st.session_state.assignments:
+        try:
+            due = datetime.strptime(str(assignment.get("due_date")), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        latest = max(latest, due)
+    return min(max((latest - today).days, 14), 60)
 
 
 # ============================================================
@@ -1792,6 +1862,68 @@ def set_session_done(index, key):
     save()
 
 
+def plan_day_label(value):
+    if not uses_ab_calendar():
+        return ""
+    try:
+        day = datetime.strptime(str(value), "%Y-%m-%d").date()
+    except ValueError:
+        return ""
+    return ab_calendar.short_label(day)
+
+
+def show_calendar_export(sessions, zone_name):
+    with st.container(border=True):
+        st.subheader("📤 Export to your calendar")
+
+        include_due = st.toggle(
+            "Include assignment due dates",
+            value=True,
+            key="export_include_due"
+        )
+
+        session_count, due_count = calendar_export.count_events(
+            sessions,
+            st.session_state.assignments,
+            include_due
+        )
+
+        if not session_count and not due_count:
+            st.caption("There's nothing with a date to export yet.")
+            return
+
+        summary = f"{session_count} study session{'s' if session_count != 1 else ''}"
+        if include_due:
+            summary += f" and {due_count} due date{'s' if due_count != 1 else ''}"
+        st.caption(f"{summary}, each study session with a 10-minute reminder.")
+
+        st.download_button(
+            "📅 Download calendar file (.ics)",
+            data=calendar_export.build_ics(
+                sessions,
+                st.session_state.assignments,
+                zone_name,
+                include_due
+            ),
+            file_name="studyflow-study-plan.ics",
+            mime="text/calendar",
+            type="primary",
+            use_container_width=True,
+            key="export_download"
+        )
+
+        with st.expander("How to add it to Google Calendar"):
+            st.markdown(
+                "1. Open **calendar.google.com** on a computer.\n"
+                "2. Click **⚙️ Settings**, then **Import & export**.\n"
+                "3. Choose the file you downloaded and click **Import**.\n\n"
+                "Tip: make a new calendar called *StudyFlow* first and import into it, "
+                "so you can hide or delete the whole plan in one click. "
+                "If you make a new plan later, clear out the old one before importing again. "
+                "The file also works with Apple Calendar and Outlook."
+            )
+
+
 def generate_plan():
     if not st.session_state.assignments:
         return None
@@ -1830,7 +1962,6 @@ def generate_plan():
         "unscheduled": unscheduled,
         "created": student_now().isoformat()
     }
-
 
 # ============================================================
 # ANALYTICS HELPERS
@@ -1929,25 +2060,25 @@ def chat_context():
         if uses_ab_calendar() else ""
     )
     return f"""
-{date_context()}
+    {date_context()}
 
-About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
-{student}
+    About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
+    {student}
 
-The student's current assignments are:
-{json.dumps(st.session_state.assignments, indent=2)}
+    The student's current assignments are:
+    {json.dumps(st.session_state.assignments, indent=2)}
 
-Adding assignments:
-If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
-reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
-in exactly this format:
-<add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
-- Difficulty must be 1-5. Priority must be Low, Medium, or High.
-- Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
-- {ASSIGNMENT_NAME_RULE}
-- {COURSE_RULE}
-- Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
-- Never use these tags for anything else, and never mention them to the student.
+    Adding assignments:
+    If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
+    reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
+    in exactly this format:
+    <add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
+    - Difficulty must be 1-5. Priority must be Low, Medium, or High.
+    - Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
+    - {ASSIGNMENT_NAME_RULE}
+    - {COURSE_RULE}
+    - Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
+    - Never use these tags for anything else, and never mention them to the student.
 """
 
 
@@ -2061,6 +2192,155 @@ def render_chat_message(message):
 
         if message.get("had_image") and not message.get("images"):
             st.caption(":material/photo_camera: An image was attached here (images aren't saved).")
+
+
+# ============================================================
+# EMAIL REMINDERS
+# ============================================================
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def email_settings():
+    try:
+        return (
+            st.secrets["GMAIL_ADDRESS"],
+            st.secrets["GMAIL_APP_PASSWORD"],
+            st.secrets.get("APP_URL", "https://studyflowai26.streamlit.app")
+        )
+    except Exception:
+        return None
+
+
+def send_test_email(reminders):
+    settings = email_settings()
+    if not settings:
+        st.warning("Email isn't set up on this copy of StudyFlow yet.")
+        return
+
+    sender, password, app_url = settings
+    student = {
+        "profile": st.session_state.profile,
+        "assignments": st.session_state.assignments,
+        "study_plan": st.session_state.study_plan
+    }
+    today = student_now().date()
+    unsubscribe_url = reminder_email.unsubscribe_link(app_url, reminders["token"])
+    email = reminder_email.build_email(student, today, app_url, unsubscribe_url)
+
+    if not email:
+        subject = "StudyFlow: reminders are on"
+        text = (
+            "Your StudyFlow reminders are set up. You don't have any study sessions today "
+            "or anything due in the next few days, so there's nothing to remind you about yet.\n\n"
+            f"Open StudyFlow: {app_url}\n\nTurn off reminders: {unsubscribe_url}"
+        )
+        body_html = "<p>" + html.escape(text).replace("\n", "<br>") + "</p>"
+    else:
+        subject, text, body_html = email
+
+    try:
+        reminder_email.send_email(sender, password, reminders["email"], subject, text, body_html, unsubscribe_url)
+        st.success(f"Test email sent to {reminders['email']}. Check your spam folder if you don't see it.")
+    except Exception as error:
+        print("TEST EMAIL FAILED:", type(error).__name__, error)
+        st.error("The test email couldn't be sent. Please try again later.")
+
+
+def show_reminder_settings():
+    reminders = st.session_state.reminders or {}
+
+    st.subheader("Daily email reminders")
+    st.caption(
+        "Get one email a day with that day's study sessions and anything due in the next few days. "
+        "Emails come from studyflowreminders@gmail.com, and every email has a link to turn them off."
+    )
+
+    if SUPABASE is None or not st.session_state.get("student_id"):
+        st.info("Email reminders need saving to be turned on.")
+        return
+
+    suggested = ""
+    if signed_in_with_google():
+        suggested = st.user.get("email") or ""
+
+    enabled = st.toggle(
+        "Email me a daily study reminder",
+        value=bool(reminders.get("enabled")),
+        key="settings_reminders_enabled"
+    )
+    email = st.text_input(
+        "Email address",
+        value=reminders.get("email") or suggested,
+        placeholder="you@example.com",
+        key="settings_reminders_email"
+    )
+    send_time = st.time_input(
+        "Send it at",
+        value=setup.to_time(reminder_email.reminder_time(reminders)),
+        step=900,
+        format="12h",
+        key="settings_reminders_time"
+    )
+    age_ok = st.checkbox(
+        "I'm 13 or older, or a parent or guardian said it's OK",
+        value=bool(reminders.get("age_ok")),
+        key="settings_reminders_age"
+    )
+
+    save_column, test_column = st.columns(2)
+
+    with save_column:
+        save_clicked = st.button("Save reminders", type="primary", use_container_width=True, key="save_reminders_button")
+
+    with test_column:
+        test_clicked = st.button(
+            ":material/send: Send a test email",
+            use_container_width=True,
+            disabled=not (reminders.get("enabled") and reminders.get("email")),
+            help="Save your reminder settings first, then send a test.",
+            key="test_reminders_button"
+        )
+
+    if save_clicked:
+        email = email.strip()
+        if enabled and not EMAIL_PATTERN.match(email):
+            st.warning("Please enter a valid email address.")
+        elif enabled and not age_ok:
+            st.warning("Please confirm you're 13 or older, or that a parent or guardian said it's OK.")
+        else:
+            updated = {
+                "enabled": enabled,
+                "email": email if enabled else "",
+                "time": setup.from_time(send_time) or reminder_email.DEFAULT_TIME,
+                "age_ok": age_ok,
+                "token": reminders.get("token") or secrets.token_urlsafe(24)
+            }
+            try:
+                st.session_state.reminders = storage.save_reminders(SUPABASE, st.session_state.student_id, updated)
+            except Exception as error:
+                print("REMINDER SAVE FAILED:", error)
+                if "reminders" in str(error):
+                    st.error(
+                        "Couldn't save because the database is missing the reminders column. "
+                        "Run supabase/add_reminders.sql in the Supabase SQL Editor."
+                    )
+                else:
+                    st.error("Couldn't save your reminder settings. Please try again.")
+                with st.expander("Technical details"):
+                    st.code(str(error))
+            else:
+                st.session_state.flash = "Reminders turned on" if enabled else "Reminders turned off"
+                st.rerun()
+
+    if test_clicked:
+        send_test_email(reminders)
+
+    if reminders.get("enabled") and reminders.get("email"):
+        st.caption(
+            f"Reminders go to **{reminders['email']}** every day around "
+            f"{setup.pretty_time(reminder_email.reminder_time(reminders))}, on days with something to study or due soon."
+        )
 
 
 # ============================================================
@@ -2239,7 +2519,8 @@ with st.sidebar:
                 "assignments, study plan, and chat messages so they're here "
                 "next time. Images you attach are never saved. If you sign in "
                 "with Google, StudyFlow keeps only an ID from Google, not your "
-                "email address."
+                "email address. If you turn on email reminders, StudyFlow saves "
+                "the email you give it, only to send those reminders."
             )
             confirm_delete = st.checkbox("I want to delete all my StudyFlow data")
             if st.button("Delete my data", disabled=not confirm_delete):
@@ -2291,12 +2572,13 @@ st.divider()
 remove_past_assignments()
 fix_general_courses()
 
-tab1, tab2, tab3, analytics_tab, tab4 = st.tabs(
+tab1, tab2, tab3, analytics_tab, tab4, tab5 = st.tabs(
     [
         ":material/assignment_add: Assignments",
         ":material/calendar_clock: Study Plan",
         ":material/chat_bubble: AI Assistant",
         ":material/insights: Analytics",
+        ":material/style: Flashcards",
         ":material/settings: Settings"
     ]
 )
@@ -2454,6 +2736,48 @@ with tab1:
                             ""
                         )
                     )
+                    
+                    if st.button(
+                        "📇 Create Flashcards",
+                        key=f"flashcards_create_{i}"
+                    ):
+                        set_is_unique = True
+                        state = st.session_state.profile.get('region') or 'Virginia'
+                        st.session_state.flashcard_sets.append(
+                            ask_ai(
+                                f"""
+                                You are a professional flashcard maker and I am a student in need of flashcards.
+                                You need to create a set of vocabulary flashcards for {assignment.get('name')} using the {state} curriculum.
+                                Make sure the cards are only for the unit specified (if present) in {state} standard curriculum.
+                                Return only in valid JSON using this format:
+                                {{
+                                    'assignment': 'name'
+                                    'card 1 word': 'definition',
+                                    'card 2 word': 'definition',
+                                    ... and so on
+                                }}
+                                """,
+                                "You are a professional flashcard maker"
+                            ) 
+                        )
+                        for set in st.session_state.flashcard_sets[0:-1]:
+                            if set.get('assignment') == assignment.get('name'):
+                                st.session_state.flashcard_sets[-1].pop()
+                                set_is_unique = False
+                        if set_is_unique:
+                            st.success(
+                                f"Flashcards for {assignment.get('name')} created!"
+                            )
+                            set = list(st.session_state.flashcard_sets[-1].items())
+                            set.insert(1, ('priority', assignment.get('priority')))
+                            set.insert(-1,('known', {}))
+                            st.session_state.flashcard_sets[-1] = dict(set)
+                        else:
+                            st.warning(
+                                f"Flashcards for {assignment.get('name')} already exist!"
+                            )
+                            
+                                
 
                 with col2:
                     st.write(
@@ -2776,7 +3100,7 @@ with tab3:
         """,
         height=0
     )
-
+    
 # ============================================================
 # ANALYTICS TAB
 # ============================================================
@@ -2937,23 +3261,135 @@ with analytics_tab:
                 use_container_width=True
             )
 
+
+# ============================================================
+# FLASHCARDS TAB
+# ============================================================
+
+st.html(f'''<style>
+
+{', '.join('.st-key-flashcard_' + str(set) for set in range(len(st.session_state.flashcard_sets)))} {{
+    align-items: center !important;
+    justify-content: center !important;
+}}
+
+{', '.join('.st-key-flashcard_' + str(set) + ' div button' for set in range(len(st.session_state.flashcard_sets)))} {{
+    border: 0.5px solid #161C2F !important;
+    border-radius: 8px !important;
+    height: 500px !important;
+    display: flex !important;
+}}
+
+{', '.join('.st-key-ik_' + str(set) for set in range(len(st.session_state.flashcard_sets)))}, {', '.join('.st-key-idk_' + str(set) for set in range(len(st.session_state.flashcard_sets)))} {{
+    border: 0.5px solid #161C2F !important;
+    border-radius: 8px !important;
+}}
+
+{', '.join('.st-key-ik_' + str(set) + ' div button div span' for set in range(len(st.session_state.flashcard_sets)))} {{
+    color: lime;
+    font-size: 25pt !important;
+}}
+
+{', '.join('.st-key-idk_' + str(set) + ' div button div span' for set in range(len(st.session_state.flashcard_sets)))} {{
+    color: red;
+    font-size: 25pt !important;
+}}
+
+{', '.join('.st-key-flashcard_' + str(set) + ' div button div span span div' for set in range(len(st.session_state.flashcard_sets)))} {{
+    font-size: 25pt !important;
+    padding: 50px !important;
+}}
+
+</style>''')
+
+def finished_set(set):
+    st.success("✅ You've finished this set of flashcards! You can add more in the 📝 Assignments tab.")
+    if st.button('📇 Practice again'):
+        st.session_state.flashcard_sets[0].update(st.session_state.flashcard_sets[set]['known'].pop())
+
+
+with tab4:
+    st.header("📇 Flashcards")
+    if not st.session_state.flashcard_sets:
+        st.info(
+            "No flashcards yet. Add some in the 📝 Assignments tab."
+        )
+    else:
+        for set in range(0, len(st.session_state.flashcard_sets)):
+            with st.expander(
+                st.session_state.flashcard_sets[set].get('assignment')
+                ):
+                try:
+                    side = st.session_state.card_idxs[set][2] + 0
+                except:
+                    side = 0
+                try:
+                    card_idx = st.session_state.card_idxs[set][1] + 0
+                except:
+                    card_idx = 0
+                
+                if type(list(st.session_state.flashcard_sets[set].keys())[card_idx + 2]) is not dict:
+                    side = fcard.draw(
+                    side, 
+                    list(st.session_state.flashcard_sets[set])[card_idx + 2], 
+                    list(st.session_state.flashcard_sets[set].values())[card_idx + 2],
+                    set
+                    )
+                    idk, ik = st.columns(2)
+                    if idk.button(icon=":material/close:", label='', width='stretch', type='tertiary', key=f'idk_{set}'):
+                        card_idx += 1
+                        side = 0
+                    if ik.button(icon=":material/check:", label='', width='stretch', type='tertiary', key=f'ik_{set}'):    
+                        card = list(st.session_state.flashcard_sets[set].values())[card_idx + 2]
+                        card_key = list(st.session_state.flashcard_sets[set].keys())[card_idx + 2]
+                        st.session_state.flashcard_sets[set].pop(list(st.session_state.flashcard_sets[set])[card_idx + 2])
+                        st.session_state.flashcard_sets[set]['known'].update({
+                            card_key: card
+                        })
+                        side = 0
+                    if len(st.session_state.card_idxs) == set:
+                        prev_side = 0
+                        st.session_state.card_idxs.insert(set, [set, card_idx, side])
+                    elif len(st.session_state.card_idxs) > set:
+                        prev_side = st.session_state.card_idxs[set][2]
+                        st.session_state.card_idxs[set] = [set, card_idx, side]
+                    else:
+                        for i in range(set - len(st.session_state.card_idxs)):
+                            st.session_state.card_idxs.insert(i, [None, None, None])
+                        prev_side = st.session_state.card_idxs[set][2]
+                        st.session_state.card_idxs[set] = [set, card_idx, side]
+                    if side != prev_side:
+                        st.rerun()
+                else:
+                    finished_set(set)
+                
+                with st.expander("📄 View raw JSON data"):    
+                    st.json(st.session_state.flashcard_sets[set])
+                if st.button("🗑️ Delete this set", type="secondary", key=f'delete_set_{set}'):
+                    del st.session_state.flashcard_sets[set]
+                    st.session_state.card_idxs[set] = [None, None, None]
+                    st.rerun()
+
+
+
 # ============================================================
 # SETTINGS TAB
 # ============================================================
 
-with tab4:
+with tab5:
     st.header(":material/settings: Settings")
     st.markdown(
         '<p class="chat-subtitle">Edit your profile, courses, and study preferences.</p>',
         unsafe_allow_html=True
     )
 
-    profile_tab, courses_tab, activities_tab, study_style_tab, ui_prefs_tab = st.tabs(
+    profile_tab, courses_tab, activities_tab, study_style_tab, reminders_tab, ui_prefs_tab = st.tabs(
         [
             ":material/account_circle: Profile",
             ":material/book: Courses",
             ":material/directions_walk: Activities",
             ":material/wand_shine: Study Style",
+            ":material/notifications: Reminders",
             ":material/palette: UI Preferences"
         ],
         width='stretch'
@@ -2996,7 +3432,6 @@ with tab4:
             save()
             st.session_state.flash = "Study style saved"
             st.rerun()
-
     with ui_prefs_tab:
         st.html(f'''
 <style>
@@ -3060,6 +3495,9 @@ with tab4:
             if st.button("Reset", type="primary", key="reset_ui_button"):
                 st.session_state.ui_prefs = ['#0f172a', '#6366f1', 'dark', '#111c33', '#f8fafc']
                 st.rerun()
+
+    with reminders_tab:
+        show_reminder_settings()
 
 # ============================================================
 # FOOTER
