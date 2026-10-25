@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
 
-import ab_calendar
+from studyflow.planning import ab_calendar
 
 
 DEFAULT_ZONE = "America/New_York"

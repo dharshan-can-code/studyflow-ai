@@ -4,7 +4,7 @@ from datetime import time
 
 import streamlit as st
 
-import fcps_courses
+from studyflow.data import fcps_courses
 
 
 DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -479,7 +479,7 @@ def courses_editor(prefix, courses, grade=None):
         args=(prefix,)
     )
 
-    st.caption("Not on the list? Use :material/add: Add a course below and type it in.")
+    st.caption("Not on the list? Add a course below and type it in.")
 
     if draft:
         st.caption("For each course, pick A day, B day, or both if it meets every day.")

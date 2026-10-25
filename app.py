@@ -7,20 +7,17 @@ import secrets
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from pathlib import Path
 from ollama import Client, ResponseError
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
-import flashcard_display as fcard
 
-import ab_calendar
-import analytics
-import calendar_export
-import glass_background
-import reminder_email
-import scheduler
-import setup_forms as setup
-import storage
-import uploads
+from studyflow.data import storage, uploads
+from studyflow.exports import calendar_export, reminder_email
+from studyflow.planning import ab_calendar, analytics, scheduler
+from studyflow.ui import flashcard_display as fcard
+from studyflow.ui import glass_background
+from studyflow.ui import setup_forms as setup
 
 import importlib
 import os
@@ -32,17 +29,17 @@ import sys
 # ============================================================
 
 HELPER_MODULES = [
-    "fcps_courses",
-    "ab_calendar",
-    "uploads",
-    "storage",
-    "scheduler",
-    "calendar_export",
-    "reminder_email",
-    "setup_forms",
-    "analytics",
-    "flashcard_display",
-    "glass_background"
+    "studyflow.data.fcps_courses",
+    "studyflow.planning.ab_calendar",
+    "studyflow.data.uploads",
+    "studyflow.data.storage",
+    "studyflow.planning.scheduler",
+    "studyflow.exports.calendar_export",
+    "studyflow.exports.reminder_email",
+    "studyflow.ui.setup_forms",
+    "studyflow.planning.analytics",
+    "studyflow.ui.flashcard_display",
+    "studyflow.ui.glass_background"
 ]
 
 
@@ -74,751 +71,22 @@ refresh_helper_modules()
 # PAGE SETTINGS
 # ============================================================
 
+APP_DIR = Path(__file__).parent
+ASSETS_DIR = APP_DIR / "assets"
+FAVICON_PATH = str(ASSETS_DIR / "images" / "favicon.svg")
+LOGO_PATH = str(ASSETS_DIR / "images" / "studyflow_logo.png")
+APP_CSS = ASSETS_DIR / "styles" / "app.css"
+
 st.set_page_config(
     page_title="StudyFlow AI",
-    page_icon="assets/studyflow_logo.png",
+    page_icon=FAVICON_PATH,
     layout="wide"
 )
 
-st.markdown("""
-<style>
-
-/* ============================================================
-   FONTS
-   ============================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
-
-
-/* ============================================================
-   MAIN APP
-   ============================================================ */
-
-.stApp {
-    background-color: #0F172A;
-    color: #F8FAFC;
-}
-
-
-[data-testid="stHeader"] {
-    background-color: #0F172A;
-}
-
-[data-testid="stHeader"] > div {
-    background-color: #0F172A;
-}
-
-
-.main .block-container {
-    color: #F8FAFC;
-}
-
-
-/* ============================================================
-   TEXT
-   ============================================================ */
-
-p {
-    color: #F8FAFC !important;
-    font-family: 'Inter', sans-serif !important;
-}
-
-label {
-    color: #CBD5E1 !important;
-    font-family: 'Inter', sans-serif !important;
-}
-
-small {
-    color: #94A3B8 !important;
-}
-
-
-/* ============================================================
-   HEADINGS
-   ============================================================ */
-
-h1, h2, h3 {
-    font-family: 'Sora', sans-serif !important;
-    color: #F8FAFC !important;
-}
-
-
-/* ============================================================
-   STUDYFLOW AI TITLE
-   ============================================================ */
-
-.studyflow-title {
-    font-family: 'Sixtyfour', monospace !important;
-    font-size: 42px;
-    font-weight: 400 !important;
-    letter-spacing: -1px;
-    line-height: 1.2;
-    margin-bottom: 8px;
-}
-
-.studyflow-title .brand-name {
-    color: #F8FAFC !important;
-    font-family: 'Sixtyfour', monospace !important;
-}
-
-.studyflow-title .brand-ai {
-    color: #2DD4BF !important;
-    font-family: 'Sixtyfour', monospace !important;
-}
-
-
-/* ============================================================
-   SUBTITLE
-   ============================================================ */
-
-.studyflow-subtitle {
-    font-family: 'Inter', sans-serif !important;
-    color: #94A3B8 !important;
-    font-size: 16px;
-    margin-bottom: 20px;
-}
-
-
-/* ============================================================
-   TEXT INPUTS
-   ============================================================ */
-
-.stTextInput input {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-
-    border: none !important;
-    border-radius: 10px !important;
-
-    font-family: 'Inter', sans-serif !important;
-}
-
-.stTextInput input::placeholder {
-    color: #64748B !important;
-    opacity: 1 !important;
-}
-
-.stTextInput input:focus {
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-}
-
-
-/* ============================================================
-   TEXT AREAS
-   ============================================================ */
-
-.stTextArea textarea {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-
-    border: none !important;
-    border-radius: 10px !important;
-
-    font-family: 'Inter', sans-serif !important;
-}
-
-.stTextArea textarea::placeholder {
-    color: #64748B !important;
-    opacity: 1 !important;
-}
-
-.stTextArea textarea:focus {
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-}
-
-
-/* ============================================================
-   SELECT BOX
-   ============================================================ */
-
-.stSelectbox [data-baseweb="select"] > div {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-
-    border: none !important;
-    border-radius: 10px !important;
-}
-
-.stSelectbox [data-baseweb="select"] span {
-    color: #F8FAFC !important;
-}
-
-
-/* ============================================================
-   BUTTONS
-   ============================================================ */
-
-.stButton button {
-    background-color: #0F766E !important;
-    color: #FFFFFF !important;
-
-    border: none !important;
-    border-radius: 10px !important;
-
-    font-family: 'Inter', sans-serif !important;
-    font-weight: 600 !important;
-
-    transition: background-color 0.2s ease;
-}
-
-.stButton button:hover {
-    background-color: #0D9488 !important;
-    color: #FFFFFF !important;
-}
-
-.stButton button:focus {
-    border: none !important;
-    box-shadow: none !important;
-}
-
-[data-testid="stCheckbox"] label:has(input[role="switch"]:not(:checked)) > span + div {
-    background-color: #334155 !important;
-}
-
-.stButton button:disabled,
-.stButton button:disabled:hover {
-    background-color: #1E293B !important;
-    color: #64748B !important;
-    cursor: not-allowed;
-}
-
-
-/* ============================================================
-   SIDEBAR
-   ============================================================ */
-
-[data-testid="stSidebar"] {
-    background-color: #111C33 !important;
-}
-
-[data-testid="stSidebar"] * {
-    font-family: 'Inter', sans-serif;
-}
-
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 {
-    color: #F8FAFC !important;
-}
-
-[data-testid="stSidebar"] label {
-    color: #CBD5E1 !important;
-}
-
-
-/* ============================================================
-   TABS
-   ============================================================ */
-
-.stTabs [data-baseweb="tab-list"] {
-    background-color: transparent !important;
-    gap: 8px;
-}
-
-.stTabs [data-baseweb="tab"] {
-    color: #94A3B8 !important;
-    font-family: 'Inter', sans-serif !important;
-    font-weight: 600;
-}
-
-.stTabs [aria-selected="true"] {
-    color: #2DD4BF !important;
-}
-
-
-/* ============================================================
-   DIVIDERS
-   ============================================================ */
-
-hr {
-    border: none !important;
-    border-top: 1px solid #1E293B !important;
-}
-
-
-/* ============================================================
-   CONTAINERS / CARDS
-   ============================================================ */
-
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background-color: #1E293B !important;
-
-    border: none !important;
-    border-radius: 12px !important;
-}
-
-/* ============================================================
-   EXTENDERS
-   ============================================================ */
-
-details:open summary {
-    background-color: #0f172a !important;
-}
-
-
-/* ============================================================
-   CHAT
-   ============================================================ */
-
-[data-testid="stChatMessage"] {
-    background: rgba(20, 29, 50, .84) !important;
-    border: 1px solid rgba(148, 163, 184, .12) !important;
-    border-radius: 16px !important;
-    padding: 1rem 1.1rem !important;
-    margin: .75rem 0 !important;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .10);
-}
-
-[data-testid="stChatMessage"] p,
-[data-testid="stChatMessage"] li {
-    line-height: 1.65;
-}
-
-[data-testid="stChatMessage"] li,
-[data-testid="stChatMessage"] td,
-[data-testid="stChatMessage"] th,
-[data-testid="stChatMessage"] blockquote,
-[data-testid="stChatMessage"] h4,
-[data-testid="stChatMessage"] h5 {
-    color: #F8FAFC !important;
-}
-
-[data-testid="stChatMessage"] li::marker {
-    color: #5EEAD4;
-}
-
-[data-testid="stChatInput"] {
-    background: #18233d !important;
-    border: 1px solid rgba(94, 234, 212, .3) !important;
-    border-radius: 15px !important;
-}
-
-[data-testid="stChatInput"] > div {
-    background: transparent !important;
-    border: none !important;
-}
-
-[data-testid="stChatInput"] textarea {
-    color: #F8FAFC !important;
-    background: transparent !important;
-    border: none !important;
-}
-
-[data-testid="stChatInput"] textarea::placeholder {
-    color: #8491a8 !important;
-}
-
-[data-testid="stChatInput"] button {
-    color: #5EEAD4 !important;
-}
-
-.chat-kicker {
-    color: #5EEAD4;
-    font-family: 'DM Mono', monospace;
-    font-size: .72rem;
-    letter-spacing: .13em;
-    text-transform: uppercase;
-    margin-bottom: .4rem;
-}
-
-.chat-subtitle {
-    color: #a9b5c9 !important;
-    font-size: 1rem;
-    line-height: 1.65;
-    max-width: 39rem;
-    margin: .25rem 0 1.25rem;
-}
-
-.welcome-card {
-    background: linear-gradient(115deg, rgba(20, 184, 166, .16), rgba(10, 20, 30, .85));
-    border: 1px solid rgba(153, 246, 228, .22);
-    border-radius: 18px;
-    padding: 1.15rem 1.25rem;
-    margin: .5rem 0 1.5rem;
-    color: #E6FFFA;
-    font-family: 'Inter', sans-serif;
-    line-height: 1.6;
-}
-
-.welcome-card strong {
-    color: #fff;
-}
-
-
-/* ============================================================
-   GENERAL STREAMLIT COMPONENT BORDERS
-   ============================================================ */
-
-div[data-baseweb="input"] {
-    border: none !important;
-}
-
-div[data-baseweb="textarea"] {
-    border: none !important;
-}
-
-div[data-baseweb="select"] {
-    border: none !important;
-}
-
-
-/* ============================================================
-   FILE UPLOADER
-   ============================================================ */
-
-[data-testid="stFileUploaderDropzone"] {
-    background-color: #1E293B !important;
-    border: 1px dashed #334155 !important;
-    border-radius: 10px !important;
-}
-
-[data-testid="stFileUploaderDropzone"] span,
-[data-testid="stFileUploaderDropzone"] small,
-[data-testid="stFileUploaderDropzone"] p {
-    color: #CBD5E1 !important;
-}
-
-[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
-    background-color: #334155 !important;
-    color: #F8FAFC !important;
-    border: none !important;
-}
-
-
-/* ============================================================
-   GREETING AND SETUP
-   ============================================================ */
-
-.greeting {
-    font-family: 'Sora', sans-serif;
-    font-size: 26px;
-    font-weight: 600;
-    color: #F8FAFC;
-    margin-top: 4px;
-}
-
-.greeting-icon {
-    font-family: 'Material Symbols Rounded';
-    font-weight: normal;
-    font-size: 26px;
-    line-height: 1;
-    vertical-align: -4px;
-    color: #5EEAD4;
-    font-feature-settings: 'liga';
-}
-
-.greeting-date {
-    font-family: 'Inter', sans-serif;
-    color: #94A3B8;
-    font-size: 15px;
-    margin-bottom: 6px;
-}
-
-.wizard-title {
-    font-size: 30px;
-    text-align: center;
-    margin: 24px 0 16px;
-}
-
-
-/* ============================================================
-   ASSIGNMENT CARDS
-   ============================================================ */
-
-.assignment-type {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.85rem;
-    font-weight: 700;
-    letter-spacing: .08em;
-    color: #94A3B8;
-}
-
-.assignment-name {
-    font-family: 'Sora', sans-serif;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #F8FAFC;
-    margin-bottom: 0.5rem;
-}
-
-
-/* ============================================================
-   ANALYTICS
-   ============================================================ */
-
-.stat-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 16px;
-    margin: 4px 0 20px;
-}
-
-@media (max-width: 1100px) {
-    .stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-.stat-tile {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-    padding: 18px;
-    background-color: #1E293B;
-    border-radius: 12px;
-}
-
-.stat-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    color: #FFFFFF;
-    font-family: 'Material Symbols Rounded';
-    font-size: 24px;
-}
-
-.stat-label {
-    font-family: 'Inter', sans-serif;
-    font-size: 13px;
-    color: #94A3B8;
-}
-
-.stat-value {
-    font-family: 'Sora', sans-serif;
-    font-size: 22px;
-    font-weight: 600;
-    color: #F8FAFC;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.card-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-    font-family: 'Sora', sans-serif;
-    font-size: 17px;
-    font-weight: 600;
-    color: #F8FAFC;
-}
-
-.card-icon {
-    font-family: 'Material Symbols Rounded';
-    font-size: 20px;
-    color: #5EEAD4;
-}
-
-.load-row {
-    margin-bottom: 14px;
-}
-
-.load-head {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 6px;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: #CBD5E1;
-}
-
-.load-count {
-    color: #94A3B8;
-    font-variant-numeric: tabular-nums;
-}
-
-.load-track {
-    height: 6px;
-    overflow: hidden;
-    background-color: #334155;
-    border-radius: 999px;
-}
-
-.load-fill {
-    height: 100%;
-    background-color: #14B8A6;
-    border-radius: 999px;
-}
-
-.load-empty {
-    color: #94A3B8 !important;
-}
-
-[data-testid="stSidebar"] [data-testid="stIconMaterial"] {
-    font-family: 'Material Symbols Rounded' !important;
-}
-
-[data-testid="stToast"] {
-    background-color: #1E293B !important;
-    border: 1px solid #334155 !important;
-}
-
-[data-testid="stToast"] [data-testid="stIconMaterial"] {
-    color: #5EEAD4 !important;
-}
-
-.stButton button[kind="tertiary"] {
-    background: transparent !important;
-    color: #94A3B8 !important;
-    font-weight: 500 !important;
-}
-
-.stButton button[kind="tertiary"]:hover {
-    background: transparent !important;
-    color: #F8FAFC !important;
-}
-
-[data-testid="stProgressBarTrack"],
-[data-testid="stProgress"] [role="progressbar"] > div {
-    background-color: #1E293B !important;
-}
-
-[data-testid="stProgressBarTrack"] > div,
-[data-testid="stProgress"] [role="progressbar"] > div > div {
-    background-color: #14B8A6 !important;
-}
-
-[data-testid="stSelectbox"] [role="group"],
-[data-testid="stNumberInputContainer"],
-[data-testid="stNumberInput"] input,
-[data-testid="stTimeInputTimeDisplay"],
-[data-testid="stTimeInput"] [data-baseweb="select"] > div,
-[data-testid="stTimeInput"] [data-baseweb="input"],
-[data-testid="stDateInput"] [data-baseweb="input"] {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-    border-radius: 10px !important;
-}
-
-[data-testid="stSelectbox"] [role="group"] *,
-[data-testid="stNumberInputContainer"] input,
-[data-testid="stTimeInput"] input,
-[data-testid="stTimeInputTimeDisplay"] *,
-[data-testid="stDateInput"] input {
-    color: #F8FAFC !important;
-    background-color: transparent !important;
-}
-
-[data-testid="stDialog"] > div {
-    background-color: #111C33 !important;
-    border: 1px solid #334155 !important;
-}
-
-[data-testid="stDialog"] button[aria-label="Close"] {
-    color: #F8FAFC !important;
-}
-
-.chat-thinking {
-    color: #94A3B8;
-    font-style: italic;
-}
-
-[data-testid="stCaptionContainer"] a,
-[data-testid="stMarkdownContainer"] a {
-    color: #5EEAD4 !important;
-}
-
-[data-testid="stCaptionContainer"] a:hover,
-[data-testid="stMarkdownContainer"] a:hover {
-    color: #99F6E4 !important;
-}
-
-[data-testid="stSelectbox"] input::placeholder {
-    color: #94A3B8 !important;
-    opacity: 1 !important;
-}
-
-[data-testid="stNumberInputContainer"] button {
-    background-color: #334155 !important;
-    color: #F8FAFC !important;
-}
-
-[role="listbox"],
-[data-baseweb="popover"] ul,
-[data-baseweb="popover"] [role="dialog"] {
-    background-color: #1E293B !important;
-}
-
-[role="option"],
-[role="option"] * {
-    color: #F8FAFC !important;
-}
-
-[role="option"]:hover,
-[role="option"][data-focused="true"],
-[role="option"][aria-selected="true"] {
-    background-color: #334155 !important;
-}
-
-[data-testid="stButtonGroup"] button {
-    background-color: #1E293B !important;
-    border: 1px solid #334155 !important;
-    color: #CBD5E1 !important;
-}
-
-[data-testid="stButtonGroup"] button p {
-    color: #CBD5E1 !important;
-}
-
-[data-testid="stButtonGroup"] button:hover {
-    border-color: #14B8A6 !important;
-}
-
-[data-testid="stButtonGroup"] button[aria-pressed="true"],
-[data-testid="stButtonGroup"] button[aria-checked="true"],
-[data-testid="stButtonGroup"] button[data-selected="true"],
-[data-testid="stButtonGroup"] button[kind$="Active"] {
-    background-color: rgba(20, 184, 166, .22) !important;
-    border-color: #14B8A6 !important;
-}
-
-[data-testid="stButtonGroup"] button[aria-pressed="true"] p,
-[data-testid="stButtonGroup"] button[aria-checked="true"] p,
-[data-testid="stButtonGroup"] button[data-selected="true"] p,
-[data-testid="stButtonGroup"] button[kind$="Active"] p {
-    color: #F8FAFC !important;
-}
-
-
-/* ============================================================
-   SCROLLBAR
-   ============================================================ */
-
-::-webkit-scrollbar {
-    width: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: #0F172A;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 10px;
-}
-
-[data-testid="stSidebarCollapseButton"] button {
-    color: #F8FAFC !important;
-}
-
-[data-testid="stSidebarCollapseButton"] button span {
-    font-family: 'Material Symbols Rounded' !important;
-    font-size: 24px !important;
-}
-
-</style>
-""", unsafe_allow_html=True)
+st.markdown(
+    f"<style>{APP_CSS.read_text(encoding='utf-8')}</style>",
+    unsafe_allow_html=True
+)
 
 glass_background.show()
 
@@ -865,7 +133,7 @@ CHAT_MODEL = "gemma4:31b-cloud"
 
 CHAT_TEMPERATURE = 0.7
 
-LOGO_PATH = "assets/studyflow_logo.png"
+AVATAR_PATH = FAVICON_PATH
 
 APP_TIMEZONE = "America/New_York"
 
@@ -1628,7 +896,7 @@ def edit_assignment_dialog(index):
 
     save_column, cancel_column = st.columns(2)
     with save_column:
-        if st.button(":material/check: Save", type="primary", use_container_width=True, key=f"{key}_save"):
+        if st.button("Save", type="primary", use_container_width=True, key=f"{key}_save"):
             if not name.strip():
                 st.warning("Please give the assignment a name.")
             else:
@@ -2146,7 +1414,7 @@ def chatbot(message):
 
 
 def render_chat_message(message):
-    avatar = LOGO_PATH if message["role"] == "assistant" else ":material/person:"
+    avatar = AVATAR_PATH if message["role"] == "assistant" else ":material/person:"
 
     with st.chat_message(message["role"], avatar=avatar):
         if message.get("content"):
@@ -2382,23 +1650,24 @@ def show_setup_wizard():
 
             values = render_setup_section(step, "setup")
 
-            back_column, _, next_column = st.columns([1, 1.5, 1])
+            with st.container(key="wizard_nav"):
+                back_column, _, next_column = st.columns([1, 1.5, 1])
 
-            with back_column:
-                go_back = st.button(
-                    ":material/arrow_back: Back",
-                    disabled=step == 0,
-                    use_container_width=True,
-                    key="wizard_back"
-                )
+                with back_column:
+                    go_back = st.button(
+                        ":material/arrow_back: Back",
+                        disabled=step == 0,
+                        use_container_width=True,
+                        key="wizard_back"
+                    )
 
-            with next_column:
-                go_next = st.button(
-                    ":material/check: Finish" if last_step else "Continue :material/arrow_forward:",
-                    type="primary",
-                    use_container_width=True,
-                    key="wizard_next"
-                )
+                with next_column:
+                    go_next = st.button(
+                        ":material/check: Finish" if last_step else "Continue :material/arrow_forward:",
+                        type="primary",
+                        use_container_width=True,
+                        key="wizard_next"
+                    )
 
         skip = st.button(
             "Skip setup for now",
@@ -2447,8 +1716,8 @@ if not st.session_state.profile.get("onboarded"):
 
 with st.sidebar:
     st.sidebar.image(
-    "assets/studyflow_logo.png",
-    width=50
+    LOGO_PATH,
+    width=140
     )
 
     if SUPABASE is None:
@@ -2470,14 +1739,14 @@ with st.sidebar:
     routine = st.session_state.study_style
 
     st.caption(
-        f":material/book: {course_count} course{'s' if course_count != 1 else ''} · "
-        f":material/directions_walk: {activity_count} activit{'ies' if activity_count != 1 else 'y'}"
+        f"{course_count} course{'s' if course_count != 1 else ''} · "
+        f"{activity_count} activit{'ies' if activity_count != 1 else 'y'}"
     )
     st.caption(
-        f":material/schedule: Homework from {setup.pretty_time(routine.get('homework_start'))}, "
+        f"Homework from {setup.pretty_time(routine.get('homework_start'))}, "
         f"bedtime {setup.pretty_time(routine.get('bed'))}"
     )
-    st.caption("Change these anytime in the :material/settings: Settings tab.")
+    st.caption("Change these anytime in the Settings tab.")
 
     if SUPABASE is not None and st.session_state.get("student_id"):
         st.divider()
@@ -2588,7 +1857,7 @@ with tab1:
         else:
             found = None
             try:
-                with st.spinner(":material/smart_toy: Analyzing..."):
+                with st.spinner("Analyzing..."):
                     found = extract_assignments(
                         assignment_input.strip(),
                         uploaded_file
@@ -2684,7 +1953,7 @@ with tab1:
             assignment_type = assignment.get("type") or ""
             is_prep = assignment_type in scheduler.PREP_TYPES
 
-            with st.container(border=True):
+            with st.container(border=True, key=f"assignment_card_{i}"):
                 col1, col2, col3 = st.columns(
                     [3, 2, 1]
                 )
@@ -2813,7 +2082,7 @@ with tab2:
             )
         else:
             with st.spinner(
-                ":material/smart_toy: Building your personalized study plan..."
+                "Building your personalized study plan..."
             ):
                 plan = generate_plan()
             if plan:
@@ -2834,7 +2103,7 @@ with tab2:
             st.warning(
                 f"Couldn't fit {item.get('minutes', '')} min of **{item.get('assignment', '')}**: "
                 f"{item.get('reason', '')}. Try raising your max study per day "
-                "or turning on weekend studying in :material/settings: Settings."
+                "or turning on weekend studying in Settings."
             )
 
         hide_done = False
@@ -2856,7 +2125,7 @@ with tab2:
             is_done = bool(session.get("done"))
             if is_done and hide_done:
                 continue
-            with st.container(border=True):
+            with st.container(border=True, key=f"session_card_{index}"):
                 check_column, col1, col2, col3 = st.columns(
                     [0.5, 1.5, 2, 4]
                 )
@@ -2987,7 +2256,7 @@ with tab3:
 
                 assignment_count = len(st.session_state.assignments)
 
-                with st.chat_message("assistant", avatar=LOGO_PATH):
+                with st.chat_message("assistant", avatar=AVATAR_PATH):
                     chatbot(message_text)
 
                     save()
@@ -3331,7 +2600,7 @@ with tab4:
                 else:
                     finished_set(set)
                 
-                with st.expander(":material/data_object: View raw JSON data"):    
+                with st.expander("View raw JSON data"):    
                     st.json(st.session_state.flashcard_sets[set])
                 if st.button(":material/delete: Delete this set", type="secondary", key=f'delete_set_{set}'):
                     del st.session_state.flashcard_sets[set]
@@ -3409,4 +2678,4 @@ with tab5:
 st.divider()
 st.caption(
     "StudyFlow AI • Powered by Ollama"
-)
+)
