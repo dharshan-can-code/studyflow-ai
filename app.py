@@ -2243,14 +2243,12 @@ def show_reminder_settings():
         placeholder="you@example.com",
         key="settings_reminders_email"
     )
-    hours = reminder_email.REMINDER_HOURS
-    saved_hour = reminders.get("hour", 7)
-    hour = st.selectbox(
+    send_time = st.time_input(
         "Send it at",
-        hours,
-        index=hours.index(saved_hour) if saved_hour in hours else hours.index(7),
-        format_func=reminder_email.hour_label,
-        key="settings_reminders_hour"
+        value=setup.to_time(reminder_email.reminder_time(reminders)),
+        step=900,
+        format="12h",
+        key="settings_reminders_time"
     )
     age_ok = st.checkbox(
         "I'm 13 or older, or a parent or guardian said it's OK",
@@ -2268,6 +2266,7 @@ def show_reminder_settings():
             ":material/send: Send a test email",
             use_container_width=True,
             disabled=not (reminders.get("enabled") and reminders.get("email")),
+            help="Save your reminder settings first, then send a test.",
             key="test_reminders_button"
         )
 
@@ -2281,7 +2280,7 @@ def show_reminder_settings():
             updated = {
                 "enabled": enabled,
                 "email": email if enabled else "",
-                "hour": hour,
+                "time": setup.from_time(send_time) or reminder_email.DEFAULT_TIME,
                 "age_ok": age_ok,
                 "token": reminders.get("token") or secrets.token_urlsafe(24)
             }
@@ -2289,7 +2288,15 @@ def show_reminder_settings():
                 st.session_state.reminders = storage.save_reminders(SUPABASE, st.session_state.student_id, updated)
             except Exception as error:
                 print("REMINDER SAVE FAILED:", error)
-                st.error("Couldn't save. Make sure supabase/add_reminders.sql was run in Supabase.")
+                if "reminders" in str(error):
+                    st.error(
+                        "Couldn't save because the database is missing the reminders column. "
+                        "Run supabase/add_reminders.sql in the Supabase SQL Editor."
+                    )
+                else:
+                    st.error("Couldn't save your reminder settings. Please try again.")
+                with st.expander("Technical details"):
+                    st.code(str(error))
             else:
                 st.session_state.flash = "Reminders turned on" if enabled else "Reminders turned off"
                 st.rerun()
@@ -2300,7 +2307,7 @@ def show_reminder_settings():
     if reminders.get("enabled") and reminders.get("email"):
         st.caption(
             f"Reminders go to **{reminders['email']}** every day around "
-            f"{reminder_email.hour_label(reminders.get('hour', 7))}, on days with something to study or due soon."
+            f"{setup.pretty_time(reminder_email.reminder_time(reminders))}, on days with something to study or due soon."
         )
 
 
@@ -3402,4 +3409,4 @@ with tab5:
 st.divider()
 st.caption(
     "StudyFlow AI • Powered by Ollama"
-)
+)
