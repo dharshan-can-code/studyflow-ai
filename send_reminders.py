@@ -24,11 +24,9 @@ def setting(name):
 def due_now(reminders, now):
     if not reminders.get("enabled") or not reminders.get("email") or not reminders.get("token"):
         return False
-    try:
-        hour = int(reminders.get("hour", 7))
-    except (TypeError, ValueError):
-        hour = 7
-    return now.hour >= hour and reminders.get("last_sent") != now.date().isoformat()
+    chosen = reminder_email.minutes_of_day(reminder_email.reminder_time(reminders))
+    current = now.hour * 60 + now.minute
+    return current >= chosen and reminders.get("last_sent") != now.date().isoformat()
 
 
 def main():

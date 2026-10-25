@@ -8,7 +8,7 @@ import ab_calendar
 
 
 DEFAULT_ZONE = "America/New_York"
-REMINDER_HOURS = list(range(5, 23))
+DEFAULT_TIME = "07:00"
 DUE_SOON_DAYS = 3
 GMAIL_HOST = "smtp.gmail.com"
 GMAIL_PORT = 465
@@ -18,9 +18,22 @@ GMAIL_PORT = 465
 # TIME HELPERS
 # ============================================================
 
-def hour_label(hour):
-    shown = hour % 12 or 12
-    return f"{shown}:00 {'AM' if hour < 12 else 'PM'}"
+def reminder_time(reminders):
+    value = str(reminders.get("time") or "").strip()
+    try:
+        moment = datetime.strptime(value[:5], "%H:%M")
+        return f"{moment.hour:02d}:{moment.minute:02d}"
+    except ValueError:
+        pass
+    try:
+        return f"{int(reminders.get('hour', 7)) % 24:02d}:00"
+    except (TypeError, ValueError):
+        return DEFAULT_TIME
+
+
+def minutes_of_day(value):
+    hours, minutes = value.split(":")
+    return int(hours) * 60 + int(minutes)
 
 
 def clock_label(value):
