@@ -15,6 +15,7 @@ import flashcard_display as fcard
 import ab_calendar
 import analytics
 import calendar_export
+import reminder_email
 import scheduler
 import setup_forms as setup
 import storage
@@ -664,10 +665,12 @@ div[data-baseweb="select"] {
     font-style: italic;
 }
 
+[data-testid="stCaptionContainer"] a,
 [data-testid="stMarkdownContainer"] a {
     color: #A78BFA !important;
 }
 
+[data-testid="stCaptionContainer"] a:hover,
 [data-testid="stMarkdownContainer"] a:hover {
     color: #C4B5FD !important;
 }
@@ -827,6 +830,9 @@ SETUP_STEPS = [
 for field, empty in storage.SAVED_FIELDS.items():
     if field not in st.session_state:
         st.session_state[field] = empty()
+
+if "reminders" not in st.session_state:
+    st.session_state.reminders = {}
 
 if "found_assignments" not in st.session_state:
     st.session_state.found_assignments = []
@@ -998,6 +1004,7 @@ def load_student():
 
     for field, value in storage.saved_data(student).items():
         st.session_state[field] = value
+    st.session_state.reminders = student.get("reminders") or {}
 
     prepare_saved_data()
     setup.reset_form_state()
@@ -1029,6 +1036,7 @@ def save():
 
 def delete_my_data():
     storage.delete_student(SUPABASE, st.session_state.student_id)
+    st.session_state.reminders = {}
 
     for field, empty in storage.SAVED_FIELDS.items():
         st.session_state[field] = empty()
@@ -1042,6 +1050,40 @@ def delete_my_data():
 
 
 COOKIE_SLOT = st.container()
+
+
+def handle_unsubscribe():
+    token = st.query_params.get("unsubscribe")
+    if not token:
+        return
+
+    supabase = storage.get_supabase()
+    try:
+        done = supabase is not None and storage.unsubscribe(supabase, token)
+    except Exception as error:
+        print("UNSUBSCRIBE FAILED:", error)
+        done = False
+
+    st.markdown(
+        """
+        <div class="studyflow-title">
+            <span class="brand-name">StudyFlow</span>
+            <span class="brand-ai"> AI</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    if done:
+        st.success("You won't get any more reminder emails. You can turn them back on in Settings anytime.")
+    else:
+        st.warning("That link didn't work. You can turn reminders off in Settings, under Reminders.")
+    if st.button("Open StudyFlow", type="primary"):
+        st.query_params.clear()
+        st.rerun()
+    st.stop()
+
+
+handle_unsubscribe()
 
 SUPABASE = load_student()
 
@@ -2121,6 +2163,148 @@ def render_chat_message(message):
 
 
 # ============================================================
+# EMAIL REMINDERS
+# ============================================================
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def email_settings():
+    try:
+        return (
+            st.secrets["GMAIL_ADDRESS"],
+            st.secrets["GMAIL_APP_PASSWORD"],
+            st.secrets.get("APP_URL", "https://studyflowai26.streamlit.app")
+        )
+    except Exception:
+        return None
+
+
+def send_test_email(reminders):
+    settings = email_settings()
+    if not settings:
+        st.warning("Email isn't set up on this copy of StudyFlow yet.")
+        return
+
+    sender, password, app_url = settings
+    student = {
+        "profile": st.session_state.profile,
+        "assignments": st.session_state.assignments,
+        "study_plan": st.session_state.study_plan
+    }
+    today = student_now().date()
+    unsubscribe_url = reminder_email.unsubscribe_link(app_url, reminders["token"])
+    email = reminder_email.build_email(student, today, app_url, unsubscribe_url)
+
+    if not email:
+        subject = "StudyFlow: reminders are on"
+        text = (
+            "Your StudyFlow reminders are set up. You don't have any study sessions today "
+            "or anything due in the next few days, so there's nothing to remind you about yet.\n\n"
+            f"Open StudyFlow: {app_url}\n\nTurn off reminders: {unsubscribe_url}"
+        )
+        body_html = "<p>" + html.escape(text).replace("\n", "<br>") + "</p>"
+    else:
+        subject, text, body_html = email
+
+    try:
+        reminder_email.send_email(sender, password, reminders["email"], subject, text, body_html, unsubscribe_url)
+        st.success(f"Test email sent to {reminders['email']}. Check your spam folder if you don't see it.")
+    except Exception as error:
+        print("TEST EMAIL FAILED:", type(error).__name__, error)
+        st.error("The test email couldn't be sent. Please try again later.")
+
+
+def show_reminder_settings():
+    reminders = st.session_state.reminders or {}
+
+    st.subheader("Daily email reminders")
+    st.caption(
+        "Get one email a day with that day's study sessions and anything due in the next few days. "
+        "Emails come from studyflowreminders@gmail.com, and every email has a link to turn them off."
+    )
+
+    if SUPABASE is None or not st.session_state.get("student_id"):
+        st.info("Email reminders need saving to be turned on.")
+        return
+
+    suggested = ""
+    if signed_in_with_google():
+        suggested = st.user.get("email") or ""
+
+    enabled = st.toggle(
+        "Email me a daily study reminder",
+        value=bool(reminders.get("enabled")),
+        key="settings_reminders_enabled"
+    )
+    email = st.text_input(
+        "Email address",
+        value=reminders.get("email") or suggested,
+        placeholder="you@example.com",
+        key="settings_reminders_email"
+    )
+    hours = reminder_email.REMINDER_HOURS
+    saved_hour = reminders.get("hour", 7)
+    hour = st.selectbox(
+        "Send it at",
+        hours,
+        index=hours.index(saved_hour) if saved_hour in hours else hours.index(7),
+        format_func=reminder_email.hour_label,
+        key="settings_reminders_hour"
+    )
+    age_ok = st.checkbox(
+        "I'm 13 or older, or a parent or guardian said it's OK",
+        value=bool(reminders.get("age_ok")),
+        key="settings_reminders_age"
+    )
+
+    save_column, test_column = st.columns(2)
+
+    with save_column:
+        save_clicked = st.button("Save reminders", type="primary", use_container_width=True, key="save_reminders_button")
+
+    with test_column:
+        test_clicked = st.button(
+            ":material/send: Send a test email",
+            use_container_width=True,
+            disabled=not (reminders.get("enabled") and reminders.get("email")),
+            key="test_reminders_button"
+        )
+
+    if save_clicked:
+        email = email.strip()
+        if enabled and not EMAIL_PATTERN.match(email):
+            st.warning("Please enter a valid email address.")
+        elif enabled and not age_ok:
+            st.warning("Please confirm you're 13 or older, or that a parent or guardian said it's OK.")
+        else:
+            updated = {
+                "enabled": enabled,
+                "email": email if enabled else "",
+                "hour": hour,
+                "age_ok": age_ok,
+                "token": reminders.get("token") or secrets.token_urlsafe(24)
+            }
+            try:
+                st.session_state.reminders = storage.save_reminders(SUPABASE, st.session_state.student_id, updated)
+            except Exception as error:
+                print("REMINDER SAVE FAILED:", error)
+                st.error("Couldn't save. Make sure supabase/add_reminders.sql was run in Supabase.")
+            else:
+                st.session_state.flash = "Reminders turned on" if enabled else "Reminders turned off"
+                st.rerun()
+
+    if test_clicked:
+        send_test_email(reminders)
+
+    if reminders.get("enabled") and reminders.get("email"):
+        st.caption(
+            f"Reminders go to **{reminders['email']}** every day around "
+            f"{reminder_email.hour_label(reminders.get('hour', 7))}, on days with something to study or due soon."
+        )
+
+
+# ============================================================
 # SETUP WIZARD
 # ============================================================
 
@@ -2296,7 +2480,8 @@ with st.sidebar:
                 "assignments, study plan, and chat messages so they're here "
                 "next time. Images you attach are never saved. If you sign in "
                 "with Google, StudyFlow keeps only an ID from Google, not your "
-                "email address."
+                "email address. If you turn on email reminders, StudyFlow saves "
+                "the email you give it, only to send those reminders."
             )
             confirm_delete = st.checkbox("I want to delete all my StudyFlow data")
             if st.button("Delete my data", disabled=not confirm_delete):
@@ -3159,12 +3344,13 @@ with tab5:
         unsafe_allow_html=True
     )
 
-    profile_tab, courses_tab, activities_tab, style_tab = st.tabs(
+    profile_tab, courses_tab, activities_tab, style_tab, reminders_tab = st.tabs(
         [
             ":material/account_circle: Profile",
             ":material/book: Courses",
             ":material/directions_walk: Activities",
-            ":material/wand_shine: Study Style"
+            ":material/wand_shine: Study Style",
+            ":material/notifications: Reminders"
         ]
     )
 
@@ -3205,6 +3391,9 @@ with tab5:
             save()
             st.session_state.flash = "Study style saved"
             st.rerun()
+
+    with reminders_tab:
+        show_reminder_settings()
 
 # ============================================================
 # FOOTER
