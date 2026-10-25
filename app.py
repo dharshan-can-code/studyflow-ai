@@ -10,6 +10,8 @@ from zoneinfo import ZoneInfo
 from ollama import Client, ResponseError
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
+import colorsys as csys
+import tomlkit
 
 import ab_calendar
 import analytics
@@ -24,13 +26,27 @@ import uploads
 # PAGE SETTINGS
 # ============================================================
 
+def shift_rgb(rgb, h_add, s_add, l_add):
+    r, g, b = (int(rgb[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    h, l, s = csys.rgb_to_hls(r, g, b)
+
+    h = (h + h_add / 360) % 1
+    s = min(1, max(0, s + s_add / 100))
+    l = min(1, max(0, l + l_add / 100))
+
+    r, g, b = csys.hls_to_rgb(h, l, s)
+    return f"#{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}"
+
 st.set_page_config(
     page_title="StudyFlow AI",
     page_icon="assets/studyflow_logo.png",
     layout="wide"
 )
 
-st.markdown("""
+if 'ui_prefs' not in st.session_state:
+    st.session_state.ui_prefs = ['#0f172a', '#6366f1', 'dark', '#111c33', '#f8fafc']
+
+st.markdown(f"""
 <style>
 
 /* ============================================================
@@ -44,96 +60,96 @@ st.markdown("""
    MAIN APP
    ============================================================ */
 
-.stApp {
-    background-color: #0F172A;
+.stApp {{
+    background-color: {st.session_state.ui_prefs[0]};
     color: #F8FAFC;
-}
+}}
 
 
-[data-testid="stHeader"] {
-    background-color: #0F172A;
-}
+[data-testid="stHeader"] {{
+    background-color: {st.session_state.ui_prefs[0]};
+}}
 
-[data-testid="stHeader"] > div {
-    background-color: #0F172A;
-}
+[data-testid="stHeader"] > div {{
+    background-color: {st.session_state.ui_prefs[0]};
+}}
 
 
-.main .block-container {
+.main .block-container {{
     color: #F8FAFC;
-}
+}}
 
 
 /* ============================================================
    TEXT
    ============================================================ */
 
-p {
+p {{
     color: #F8FAFC !important;
     font-family: 'Inter', sans-serif !important;
-}
+}}
 
-label {
+label {{
     color: #CBD5E1 !important;
     font-family: 'Inter', sans-serif !important;
-}
+}}
 
-small {
+small {{
     color: #94A3B8 !important;
-}
+}}
 
 
 /* ============================================================
    HEADINGS
    ============================================================ */
 
-h1, h2, h3 {
+h1, h2, h3 {{
     font-family: 'Sora', sans-serif !important;
     color: #F8FAFC !important;
-}
+}}
 
 
 /* ============================================================
    STUDYFLOW AI TITLE
    ============================================================ */
 
-.studyflow-title {
+.studyflow-title {{
     font-family: 'Sixtyfour', monospace !important;
     font-size: 42px;
     font-weight: 400 !important;
     letter-spacing: -1px;
     line-height: 1.2;
     margin-bottom: 8px;
-}
+}}
 
-.studyflow-title .brand-name {
+.studyflow-title .brand-name {{
     color: #F8FAFC !important;
     font-family: 'Sixtyfour', monospace !important;
-}
+}}
 
-.studyflow-title .brand-ai {
-    color: #8B5CF6 !important;
+.studyflow-title .brand-ai {{
+    color: {st.session_state.ui_prefs[1]} !important;
     font-family: 'Sixtyfour', monospace !important;
-}
+}}
 
 
 /* ============================================================
    SUBTITLE
    ============================================================ */
 
-.studyflow-subtitle {
+.studyflow-subtitle {{
     font-family: 'Inter', sans-serif !important;
     color: #94A3B8 !important;
     font-size: 16px;
     margin-bottom: 20px;
-}
+}}
 
 
 /* ============================================================
    TEXT INPUTS
    ============================================================ */
 
-.stTextInput input {
+.stTextInput input {{
     background-color: #1E293B !important;
     color: #F8FAFC !important;
 
@@ -141,25 +157,25 @@ h1, h2, h3 {
     border-radius: 10px !important;
 
     font-family: 'Inter', sans-serif !important;
-}
+}}
 
-.stTextInput input::placeholder {
+.stTextInput input::placeholder {{
     color: #64748B !important;
     opacity: 1 !important;
-}
+}}
 
-.stTextInput input:focus {
+.stTextInput input:focus {{
     border: none !important;
     box-shadow: none !important;
     outline: none !important;
-}
+}}
 
 
 /* ============================================================
    TEXT AREAS
    ============================================================ */
 
-.stTextArea textarea {
+.stTextArea textarea {{
     background-color: #1E293B !important;
     color: #F8FAFC !important;
 
@@ -167,43 +183,43 @@ h1, h2, h3 {
     border-radius: 10px !important;
 
     font-family: 'Inter', sans-serif !important;
-}
+}}
 
-.stTextArea textarea::placeholder {
+.stTextArea textarea::placeholder {{
     color: #64748B !important;
     opacity: 1 !important;
-}
+}}
 
-.stTextArea textarea:focus {
+.stTextArea textarea:focus {{
     border: none !important;
     box-shadow: none !important;
     outline: none !important;
-}
+}}
 
 
 /* ============================================================
    SELECT BOX
    ============================================================ */
 
-.stSelectbox [data-baseweb="select"] > div {
+.stSelectbox [data-baseweb="select"] > div {{
     background-color: #1E293B !important;
     color: #F8FAFC !important;
 
     border: none !important;
     border-radius: 10px !important;
-}
+}}
 
-.stSelectbox [data-baseweb="select"] span {
+.stSelectbox [data-baseweb="select"] span {{
     color: #F8FAFC !important;
-}
+}}
 
 
 /* ============================================================
    BUTTONS
    ============================================================ */
 
-.stButton button {
-    background-color: #6366F1 !important;
+.stButton button {{
+    background-color: {st.session_state.ui_prefs[1]} !important;
     color: #FFFFFF !important;
 
     border: none !important;
@@ -213,288 +229,300 @@ h1, h2, h3 {
     font-weight: 600 !important;
 
     transition: background-color 0.2s ease;
-}
+}}
 
-.stButton button:hover {
-    background-color: #8B5CF6 !important;
+.stButton button:hover {{
+    background-color: {shift_rgb(st.session_state.ui_prefs[1], 19, 6, -1)} !important;
     color: #FFFFFF !important;
-}
+}}
 
-.stButton button:focus {
+.stButton button:focus {{
     border: none !important;
     box-shadow: none !important;
-}
+}}
 
+
+/* ============================================================
+   TOGGLES
+   ============================================================ */
+
+label[data-selected="true"] > div:not([data-testid="stWidgetLabel"]) {{
+    background-color: {st.session_state.ui_prefs[1]};
+}}
 
 /* ============================================================
    SIDEBAR
    ============================================================ */
 
-[data-testid="stSidebar"] {
+[data-testid="stSidebar"] {{
     background-color: #111C33 !important;
-}
+}}
 
-[data-testid="stSidebar"] * {
+[data-testid="stSidebar"] * {{
     font-family: 'Inter', sans-serif;
-}
+}}
 
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 {
+[data-testid="stSidebar"] h3 {{
     color: #F8FAFC !important;
-}
+}}
 
-[data-testid="stSidebar"] label {
+[data-testid="stSidebar"] label {{
     color: #CBD5E1 !important;
-}
+}}
 
 
 /* ============================================================
    TABS
    ============================================================ */
 
-.stTabs [data-baseweb="tab-list"] {
+.stTabs [data-baseweb="tab-list"] {{
     background-color: transparent !important;
     gap: 8px;
-}
+}}
 
-.stTabs [data-baseweb="tab"] {
+.stTabs [data-baseweb="tab"] {{
     color: #94A3B8 !important;
     font-family: 'Inter', sans-serif !important;
     font-weight: 600;
-}
+}}
 
-.stTabs [aria-selected="true"] {
-    color: #8B5CF6 !important;
-}
+.stTabs [aria-selected="true"] {{
+    color: {st.session_state.ui_prefs[1]} !important;
+}}
+
+.react-aria-SelectionIndicator {{
+    background-color: {st.session_state.ui_prefs[1]} !important;
+}}
 
 
 /* ============================================================
    DIVIDERS
    ============================================================ */
 
-hr {
+hr {{
     border: none !important;
     border-top: 1px solid #1E293B !important;
-}
+}}
 
 
 /* ============================================================
    CONTAINERS / CARDS
    ============================================================ */
 
-[data-testid="stVerticalBlockBorderWrapper"] {
+[data-testid="stVerticalBlockBorderWrapper"] {{
     background-color: #1E293B !important;
 
     border: none !important;
     border-radius: 12px !important;
-}
+}}
 
 
 /* ============================================================
    CHAT
    ============================================================ */
 
-[data-testid="stChatMessage"] {
+[data-testid="stChatMessage"] {{
     background: rgba(20, 29, 50, .84) !important;
     border: 1px solid rgba(148, 163, 184, .12) !important;
     border-radius: 16px !important;
     padding: 1rem 1.1rem !important;
     margin: .75rem 0 !important;
     box-shadow: 0 12px 32px rgba(0, 0, 0, .10);
-}
+}}
 
 [data-testid="stChatMessage"] p,
-[data-testid="stChatMessage"] li {
+[data-testid="stChatMessage"] li {{
     line-height: 1.65;
-}
+}}
 
 [data-testid="stChatMessage"] li,
 [data-testid="stChatMessage"] td,
 [data-testid="stChatMessage"] th,
 [data-testid="stChatMessage"] blockquote,
 [data-testid="stChatMessage"] h4,
-[data-testid="stChatMessage"] h5 {
+[data-testid="stChatMessage"] h5 {{
     color: #F8FAFC !important;
-}
+}}
 
-[data-testid="stChatMessage"] li::marker {
+[data-testid="stChatMessage"] li::marker {{
     color: #a78bfa;
-}
+}}
 
-[data-testid="stChatInput"] {
+[data-testid="stChatInput"] {{
     background: #18233d !important;
-    border: 1px solid rgba(167, 139, 250, .35) !important;
+    border: 1px solid {st.session_state.ui_prefs[1]}58 !important;
     border-radius: 15px !important;
-}
+}}
 
-[data-testid="stChatInput"] > div {
+[data-testid="stChatInput"] > div {{
     background: transparent !important;
     border: none !important;
-}
+}}
 
-[data-testid="stChatInput"] textarea {
+[data-testid="stChatInput"] textarea {{
     color: #F8FAFC !important;
     background: transparent !important;
     border: none !important;
-}
+}}
 
-[data-testid="stChatInput"] textarea::placeholder {
+[data-testid="stChatInput"] textarea::placeholder {{
     color: #8491a8 !important;
-}
+}}
 
-[data-testid="stChatInput"] button {
-    color: #a78bfa !important;
-}
+[data-testid="stChatInput"] button {{
+    color: {st.session_state.ui_prefs[1]}58 !important;
+}}
 
-.chat-kicker {
-    color: #a78bfa;
+.chat-kicker {{
+    color: {st.session_state.ui_prefs[1]};
     font-family: 'DM Mono', monospace;
     font-size: .72rem;
     letter-spacing: .13em;
     text-transform: uppercase;
     margin-bottom: .4rem;
-}
+}}
 
-.chat-subtitle {
+.chat-subtitle {{
     color: #a9b5c9 !important;
     font-size: 1rem;
     line-height: 1.65;
     max-width: 39rem;
     margin: .25rem 0 1.25rem;
-}
+}}
 
-.welcome-card {
-    background: linear-gradient(115deg, rgba(124, 58, 237, .22), rgba(30, 41, 72, .75));
-    border: 1px solid rgba(196, 181, 253, .25);
+.welcome-card {{
+    background: linear-gradient(115deg, {shift_rgb(st.session_state.ui_prefs[1], -19, -6, 1)}40, rgba(30, 41, 72, .75));
+    border: 1px solid {shift_rgb(st.session_state.ui_prefs[1], -6, 1, -19)}40;
     border-radius: 18px;
     padding: 1.15rem 1.25rem;
     margin: .5rem 0 1.5rem;
     color: #e9e5ff;
     font-family: 'Inter', sans-serif;
     line-height: 1.6;
-}
+}}
 
-.welcome-card strong {
+.welcome-card strong {{
     color: #fff;
-}
+}}
 
 
 /* ============================================================
    GENERAL STREAMLIT COMPONENT BORDERS
    ============================================================ */
 
-div[data-baseweb="input"] {
+div[data-baseweb="input"] {{
     border: none !important;
-}
+}}
 
-div[data-baseweb="textarea"] {
+div[data-baseweb="textarea"] {{
     border: none !important;
-}
+}}
 
-div[data-baseweb="select"] {
+div[data-baseweb="select"] {{
     border: none !important;
-}
+}}
 
 
 /* ============================================================
    FILE UPLOADER
    ============================================================ */
 
-[data-testid="stFileUploaderDropzone"] {
+[data-testid="stFileUploaderDropzone"] {{
     background-color: #1E293B !important;
     border: 1px dashed #334155 !important;
     border-radius: 10px !important;
-}
+}}
 
 [data-testid="stFileUploaderDropzone"] span,
 [data-testid="stFileUploaderDropzone"] small,
-[data-testid="stFileUploaderDropzone"] p {
+[data-testid="stFileUploaderDropzone"] p {{
     color: #CBD5E1 !important;
-}
+}}
 
-[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {{
     background-color: #334155 !important;
     color: #F8FAFC !important;
     border: none !important;
-}
+}}
 
 
 /* ============================================================
    GREETING AND SETUP
    ============================================================ */
 
-.greeting {
+.greeting {{
     font-family: 'Sora', sans-serif;
     font-size: 26px;
     font-weight: 600;
     color: #F8FAFC;
     margin-top: 4px;
-}
+}}
 
-.greeting-icon {
+.greeting-icon {{
     font-family: 'Material Symbols Rounded';
     font-weight: normal;
-    font-size: 26px;
+    font-size: 30px;
     line-height: 1;
     vertical-align: -4px;
-    color: #A78BFA;
+    color: {st.session_state.ui_prefs[1]};
     font-feature-settings: 'liga';
-}
+}}
 
-.greeting-date {
+.greeting-date {{
     font-family: 'Inter', sans-serif;
     color: #94A3B8;
     font-size: 15px;
     margin-bottom: 6px;
-}
+}}
 
-.wizard-title {
+.wizard-title {{
     font-size: 30px;
     text-align: center;
     margin: 24px 0 16px;
-}
+}}
 
 
 /* ============================================================
    ASSIGNMENT CARDS
    ============================================================ */
 
-.assignment-type {
+.assignment-type {{
     font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
     font-weight: 700;
     letter-spacing: .08em;
     color: #94A3B8;
-}
+}}
 
-.assignment-name {
+.assignment-name {{
     font-family: 'Sora', sans-serif;
     font-size: 1.5rem;
     font-weight: 600;
     color: #F8FAFC;
     margin-bottom: 0.5rem;
-}
+}}
 
 
 /* ============================================================
    ANALYTICS
    ============================================================ */
 
-.stat-grid {
+.stat-grid {{
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
     margin: 4px 0 20px;
-}
+}}
 
-@media (max-width: 1100px) {
-    .stat-grid {
+@media (max-width: 1100px) {{
+    .stat-grid {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
+    }}
+}}
 
-.stat-tile {
+.stat-tile {{
     display: flex;
     align-items: center;
     gap: 14px;
@@ -502,9 +530,9 @@ div[data-baseweb="select"] {
     padding: 18px;
     background-color: #1E293B;
     border-radius: 12px;
-}
+}}
 
-.stat-icon {
+.stat-icon {{
     display: flex;
     align-items: center;
     justify-content: center;
@@ -515,15 +543,15 @@ div[data-baseweb="select"] {
     color: #FFFFFF;
     font-family: 'Material Symbols Rounded';
     font-size: 24px;
-}
+}}
 
-.stat-label {
+.stat-label {{
     font-family: 'Inter', sans-serif;
     font-size: 13px;
     color: #94A3B8;
-}
+}}
 
-.stat-value {
+.stat-value {{
     font-family: 'Sora', sans-serif;
     font-size: 22px;
     font-weight: 600;
@@ -531,9 +559,9 @@ div[data-baseweb="select"] {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
+}}
 
-.card-title {
+.card-title {{
     display: flex;
     align-items: center;
     gap: 8px;
@@ -542,19 +570,19 @@ div[data-baseweb="select"] {
     font-size: 17px;
     font-weight: 600;
     color: #F8FAFC;
-}
+}}
 
-.card-icon {
+.card-icon {{
     font-family: 'Material Symbols Rounded';
     font-size: 20px;
     color: #A78BFA;
-}
+}}
 
-.load-row {
+.load-row {{
     margin-bottom: 14px;
-}
+}}
 
-.load-head {
+.load-head {{
     display: flex;
     justify-content: space-between;
     gap: 12px;
@@ -562,63 +590,63 @@ div[data-baseweb="select"] {
     font-family: 'Inter', sans-serif;
     font-size: 14px;
     color: #CBD5E1;
-}
+}}
 
-.load-count {
+.load-count {{
     color: #94A3B8;
     font-variant-numeric: tabular-nums;
-}
+}}
 
-.load-track {
+.load-track {{
     height: 6px;
     overflow: hidden;
     background-color: #334155;
     border-radius: 999px;
-}
+}}
 
-.load-fill {
+.load-fill {{
     height: 100%;
-    background-color: #8B5CF6;
+    background-color: {st.session_state.ui_prefs[1]};
     border-radius: 999px;
-}
+}}
 
-.load-empty {
+.load-empty {{
     color: #94A3B8 !important;
-}
+}}
 
-[data-testid="stSidebar"] [data-testid="stIconMaterial"] {
+[data-testid="stSidebar"] [data-testid="stIconMaterial"] {{
     font-family: 'Material Symbols Rounded' !important;
-}
+}}
 
-[data-testid="stToast"] {
+[data-testid="stToast"] {{
     background-color: #1E293B !important;
     border: 1px solid #334155 !important;
-}
+}}
 
-[data-testid="stToast"] [data-testid="stIconMaterial"] {
+[data-testid="stToast"] [data-testid="stIconMaterial"] {{
     color: #A78BFA !important;
-}
+}}
 
-.stButton button[kind="tertiary"] {
+.stButton button[kind="tertiary"] {{
     background: transparent !important;
     color: #94A3B8 !important;
     font-weight: 500 !important;
-}
+}}
 
-.stButton button[kind="tertiary"]:hover {
+.stButton button[kind="tertiary"]:hover {{
     background: transparent !important;
     color: #F8FAFC !important;
-}
+}}
 
 [data-testid="stProgressBarTrack"],
-[data-testid="stProgress"] [role="progressbar"] > div {
+[data-testid="stProgress"] [role="progressbar"] > div {{
     background-color: #1E293B !important;
-}
+}}
 
 [data-testid="stProgressBarTrack"] > div,
-[data-testid="stProgress"] [role="progressbar"] > div > div {
-    background-color: #8B5CF6 !important;
-}
+[data-testid="stProgress"] [role="progressbar"] > div > div {{
+    background-color: {st.session_state.ui_prefs[1]} !important;
+}}
 
 [data-testid="stSelectbox"] [role="group"],
 [data-testid="stNumberInputContainer"],
@@ -626,125 +654,125 @@ div[data-baseweb="select"] {
 [data-testid="stTimeInputTimeDisplay"],
 [data-testid="stTimeInput"] [data-baseweb="select"] > div,
 [data-testid="stTimeInput"] [data-baseweb="input"],
-[data-testid="stDateInput"] [data-baseweb="input"] {
+[data-testid="stDateInput"] [data-baseweb="input"] {{
     background-color: #1E293B !important;
     color: #F8FAFC !important;
     border-radius: 10px !important;
-}
+}}
 
 [data-testid="stSelectbox"] [role="group"] *,
 [data-testid="stNumberInputContainer"] input,
 [data-testid="stTimeInput"] input,
 [data-testid="stTimeInputTimeDisplay"] *,
-[data-testid="stDateInput"] input {
+[data-testid="stDateInput"] input {{
     color: #F8FAFC !important;
     background-color: transparent !important;
-}
+}}
 
-[data-testid="stDialog"] > div {
+[data-testid="stDialog"] > div {{
     background-color: #111C33 !important;
     border: 1px solid #334155 !important;
-}
+}}
 
-[data-testid="stDialog"] button[aria-label="Close"] {
+[data-testid="stDialog"] button[aria-label="Close"] {{
     color: #F8FAFC !important;
-}
+}}
 
-.chat-thinking {
+.chat-thinking {{
     color: #94A3B8;
     font-style: italic;
-}
+}}
 
-[data-testid="stMarkdownContainer"] a {
+[data-testid="stMarkdownContainer"] a {{
     color: #A78BFA !important;
-}
+}}
 
-[data-testid="stMarkdownContainer"] a:hover {
+[data-testid="stMarkdownContainer"] a:hover {{
     color: #C4B5FD !important;
-}
+}}
 
-[data-testid="stSelectbox"] input::placeholder {
+[data-testid="stSelectbox"] input::placeholder {{
     color: #94A3B8 !important;
     opacity: 1 !important;
-}
+}}
 
-[data-testid="stNumberInputContainer"] button {
+[data-testid="stNumberInputContainer"] button {{
     background-color: #334155 !important;
     color: #F8FAFC !important;
-}
+}}
 
 [role="listbox"],
 [data-baseweb="popover"] ul,
-[data-baseweb="popover"] [role="dialog"] {
+[data-baseweb="popover"] [role="dialog"] {{
     background-color: #1E293B !important;
-}
+}}
 
 [role="option"],
-[role="option"] * {
+[role="option"] * {{
     color: #F8FAFC !important;
-}
+}}
 
 [role="option"]:hover,
 [role="option"][data-focused="true"],
-[role="option"][aria-selected="true"] {
+[role="option"][aria-selected="true"] {{
     background-color: #334155 !important;
-}
+}}
 
-[data-testid="stButtonGroup"] button {
+[data-testid="stButtonGroup"] button {{
     background-color: #1E293B !important;
     border: 1px solid #334155 !important;
     color: #CBD5E1 !important;
-}
+}}
 
-[data-testid="stButtonGroup"] button p {
+[data-testid="stButtonGroup"] button p {{
     color: #CBD5E1 !important;
-}
+}}
 
-[data-testid="stButtonGroup"] button:hover {
-    border-color: #8B5CF6 !important;
-}
+[data-testid="stButtonGroup"] button:hover {{
+    border-color: {st.session_state.ui_prefs[1]} !important;
+}}
 
 [data-testid="stButtonGroup"] button[aria-pressed="true"],
 [data-testid="stButtonGroup"] button[aria-checked="true"],
 [data-testid="stButtonGroup"] button[data-selected="true"],
-[data-testid="stButtonGroup"] button[kind$="Active"] {
+[data-testid="stButtonGroup"] button[kind$="Active"] {{
     background-color: rgba(139, 92, 246, .25) !important;
-    border-color: #8B5CF6 !important;
-}
+    border-color: {st.session_state.ui_prefs[1]} !important;
+}}
 
 [data-testid="stButtonGroup"] button[aria-pressed="true"] p,
 [data-testid="stButtonGroup"] button[aria-checked="true"] p,
 [data-testid="stButtonGroup"] button[data-selected="true"] p,
-[data-testid="stButtonGroup"] button[kind$="Active"] p {
+[data-testid="stButtonGroup"] button[kind$="Active"] p {{
     color: #F8FAFC !important;
-}
+}}
 
 
 /* ============================================================
    SCROLLBAR
    ============================================================ */
 
-::-webkit-scrollbar {
+::-webkit-scrollbar {{
     width: 8px;
-}
+}}
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {{
     background: #0F172A;
-}
+}}
 
-::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {{
     background: #334155;
     border-radius: 10px;
-}
+}}
 
-[data-testid="stSidebarCollapseButton"] button {
+[data-testid="stSidebarCollapseButton"] button {{
     color: #F8FAFC !important;
-}
+}}
 
-[data-testid="stSidebarCollapseButton"] button span {
+[data-testid="stSidebarCollapseButton"] button span {{
     font-family: 'Material Symbols Rounded' !important;
     font-size: 24px !important;
-}
+}}
 
 </style>
 """, unsafe_allow_html=True)
@@ -2778,7 +2806,7 @@ with analytics_tab:
                  f"{stats['done']} / {stats['total']}"),
                 ("local_fire_department", "#F97316", "Day streak",
                  f"{streak} day{'s' if streak != 1 else ''}"),
-                ("adjust", "#8B5CF6", "Avg per task",
+                ("adjust", "{st.session_state.ui_prefs[1]}", "Avg per task",
                  analytics.pretty_minutes(analytics.average_minutes(sessions)))
             ]),
             unsafe_allow_html=True
@@ -2809,7 +2837,7 @@ with analytics_tab:
                 most = max(value["Hours"] for value in values)
                 chart = (
                     alt.Chart(alt.Data(values=values))
-                    .mark_bar(color="#8B5CF6", cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": 0.6})
+                    .mark_bar(color="{st.session_state.ui_prefs[1]}", cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": 0.6})
                     .encode(
                         x=alt.X("Day:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
                         y=alt.Y(
@@ -2916,13 +2944,15 @@ with tab4:
         unsafe_allow_html=True
     )
 
-    profile_tab, courses_tab, activities_tab, style_tab = st.tabs(
+    profile_tab, courses_tab, activities_tab, study_style_tab, ui_prefs_tab = st.tabs(
         [
             ":material/account_circle: Profile",
             ":material/book: Courses",
             ":material/directions_walk: Activities",
-            ":material/wand_shine: Study Style"
-        ]
+            ":material/wand_shine: Study Style",
+            ":material/palette: UI Preferences"
+        ],
+        width='stretch'
     )
 
     with profile_tab:
@@ -2952,7 +2982,7 @@ with tab4:
             st.session_state.flash = "Activities saved"
             st.rerun()
 
-    with style_tab:
+    with study_style_tab:
         st.subheader("Daily Routine")
         routine_values = render_setup_section(3, "settings")
         st.subheader("Study Preferences")
@@ -2961,6 +2991,55 @@ with tab4:
             commit_setup_section(3, {**routine_values, **preference_values}, "settings")
             save()
             st.session_state.flash = "Study style saved"
+            st.rerun()
+
+    with ui_prefs_tab:
+        st.html(f'''
+<style>
+    .st-key-theme_toggle div {{
+        margin-top: 0rem !important;
+    }}
+
+    .st-key-theme_toggle div label {{
+        gap: 0rem !important;
+    }}
+
+    .stColumn:has(.st-key-light, .st-key-toggle_container, .st-key-dark) {{
+        width: unset !important;
+        flex: unset !important;
+    }}
+
+    .stHorizontalBlock:has(.st-key-light, .st-key-toggle_container, .st-key-dark) {{
+            gap: 0.5rem !important;
+    }}
+
+    .st-key-theme_toggle > div > label:not([data-selected="true"]) > div {{
+        background-color: {st.session_state.ui_prefs[1]}
+    }}
+</style>
+        ''')
+        #light, toggle, dark = st.columns(3)
+        #with light:
+        #    with st.container(key='light'):
+        #        st.caption(':material/light_mode: Light')
+        #with toggle:
+        #    with st.container(key='toggle_container'):
+        #        theme = st.toggle('', value=True, key='theme_toggle')
+        #with dark:
+        #    with st.container(key='dark'):
+        #        st.caption('Dark :material/dark_mode:')
+        background_color_column, accent_color_column, secondary_background_column, text_color_column = st.columns(4, width='stretch')
+        with background_color_column:
+            background_color = st.color_picker("Background color", value=st.session_state.ui_prefs[0], width='stretch')
+        with accent_color_column:
+            accent_color = st.color_picker("Accent color", value=st.session_state.ui_prefs[1], width='stretch')
+        with secondary_background_column:
+            secondary_background_color = st.color_picker("Secondary background color", value=st.session_state.ui_prefs[3], width='stretch')
+        with text_color_column:
+            text_color = st.color_picker("Text color", value=st.session_state.ui_prefs[4], width='stretch')
+        if st.button("Save UI preferences", type="primary", key="save_ui_button"):
+            st.session_state.ui_prefs = [background_color, accent_color, 'dark', secondary_background_color, text_color]
+            st.session_state.flash = "UI preferences saved"
             st.rerun()
 
 # ============================================================
