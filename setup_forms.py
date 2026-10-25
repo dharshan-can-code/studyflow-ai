@@ -399,7 +399,7 @@ def profile_form(prefix, profile, suggested_name=""):
     region = st.selectbox(
         "Region",
         REGIONS,
-        index=REGIONS.index('Virginia'),
+        index=_index(REGIONS, profile.get("region"), REGIONS.index("Virginia")),
         key=f"{prefix}_profile_region"
     )
 

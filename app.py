@@ -15,11 +15,59 @@ import flashcard_display as fcard
 import ab_calendar
 import analytics
 import calendar_export
+import glass_background
 import reminder_email
 import scheduler
 import setup_forms as setup
 import storage
 import uploads
+
+import importlib
+import os
+import sys
+
+
+# ============================================================
+# KEEP HELPER FILES UP TO DATE
+# ============================================================
+
+HELPER_MODULES = [
+    "fcps_courses",
+    "ab_calendar",
+    "uploads",
+    "storage",
+    "scheduler",
+    "calendar_export",
+    "reminder_email",
+    "setup_forms",
+    "analytics",
+    "flashcard_display",
+    "glass_background"
+]
+
+
+@st.cache_resource
+def _helper_file_times():
+    return {}
+
+
+def refresh_helper_modules():
+    seen = _helper_file_times()
+    for name in HELPER_MODULES:
+        module = sys.modules.get(name)
+        path = getattr(module, "__file__", None)
+        if not path:
+            continue
+        try:
+            changed_at = os.path.getmtime(path)
+        except OSError:
+            continue
+        if name in seen and seen[name] != changed_at:
+            importlib.reload(module)
+        seen[name] = changed_at
+
+
+refresh_helper_modules()
 
 
 # ============================================================
@@ -114,7 +162,7 @@ h1, h2, h3 {
 }
 
 .studyflow-title .brand-ai {
-    color: #8B5CF6 !important;
+    color: #2DD4BF !important;
     font-family: 'Sixtyfour', monospace !important;
 }
 
@@ -205,7 +253,7 @@ h1, h2, h3 {
    ============================================================ */
 
 .stButton button {
-    background-color: #6366F1 !important;
+    background-color: #0F766E !important;
     color: #FFFFFF !important;
 
     border: none !important;
@@ -218,13 +266,24 @@ h1, h2, h3 {
 }
 
 .stButton button:hover {
-    background-color: #8B5CF6 !important;
+    background-color: #0D9488 !important;
     color: #FFFFFF !important;
 }
 
 .stButton button:focus {
     border: none !important;
     box-shadow: none !important;
+}
+
+[data-testid="stCheckbox"] label:has(input[role="switch"]:not(:checked)) > span + div {
+    background-color: #334155 !important;
+}
+
+.stButton button:disabled,
+.stButton button:disabled:hover {
+    background-color: #1E293B !important;
+    color: #64748B !important;
+    cursor: not-allowed;
 }
 
 
@@ -267,7 +326,7 @@ h1, h2, h3 {
 }
 
 .stTabs [aria-selected="true"] {
-    color: #8B5CF6 !important;
+    color: #2DD4BF !important;
 }
 
 
@@ -329,12 +388,12 @@ details:open summary {
 }
 
 [data-testid="stChatMessage"] li::marker {
-    color: #a78bfa;
+    color: #5EEAD4;
 }
 
 [data-testid="stChatInput"] {
     background: #18233d !important;
-    border: 1px solid rgba(167, 139, 250, .35) !important;
+    border: 1px solid rgba(94, 234, 212, .3) !important;
     border-radius: 15px !important;
 }
 
@@ -354,11 +413,11 @@ details:open summary {
 }
 
 [data-testid="stChatInput"] button {
-    color: #a78bfa !important;
+    color: #5EEAD4 !important;
 }
 
 .chat-kicker {
-    color: #a78bfa;
+    color: #5EEAD4;
     font-family: 'DM Mono', monospace;
     font-size: .72rem;
     letter-spacing: .13em;
@@ -375,12 +434,12 @@ details:open summary {
 }
 
 .welcome-card {
-    background: linear-gradient(115deg, rgba(124, 58, 237, .22), rgba(30, 41, 72, .75));
-    border: 1px solid rgba(196, 181, 253, .25);
+    background: linear-gradient(115deg, rgba(20, 184, 166, .16), rgba(10, 20, 30, .85));
+    border: 1px solid rgba(153, 246, 228, .22);
     border-radius: 18px;
     padding: 1.15rem 1.25rem;
     margin: .5rem 0 1.5rem;
-    color: #e9e5ff;
+    color: #E6FFFA;
     font-family: 'Inter', sans-serif;
     line-height: 1.6;
 }
@@ -448,7 +507,7 @@ div[data-baseweb="select"] {
     font-size: 26px;
     line-height: 1;
     vertical-align: -4px;
-    color: #A78BFA;
+    color: #5EEAD4;
     font-feature-settings: 'liga';
 }
 
@@ -557,7 +616,7 @@ div[data-baseweb="select"] {
 .card-icon {
     font-family: 'Material Symbols Rounded';
     font-size: 20px;
-    color: #A78BFA;
+    color: #5EEAD4;
 }
 
 .load-row {
@@ -588,7 +647,7 @@ div[data-baseweb="select"] {
 
 .load-fill {
     height: 100%;
-    background-color: #8B5CF6;
+    background-color: #14B8A6;
     border-radius: 999px;
 }
 
@@ -606,7 +665,7 @@ div[data-baseweb="select"] {
 }
 
 [data-testid="stToast"] [data-testid="stIconMaterial"] {
-    color: #A78BFA !important;
+    color: #5EEAD4 !important;
 }
 
 .stButton button[kind="tertiary"] {
@@ -627,7 +686,7 @@ div[data-baseweb="select"] {
 
 [data-testid="stProgressBarTrack"] > div,
 [data-testid="stProgress"] [role="progressbar"] > div > div {
-    background-color: #8B5CF6 !important;
+    background-color: #14B8A6 !important;
 }
 
 [data-testid="stSelectbox"] [role="group"],
@@ -667,12 +726,12 @@ div[data-baseweb="select"] {
 
 [data-testid="stCaptionContainer"] a,
 [data-testid="stMarkdownContainer"] a {
-    color: #A78BFA !important;
+    color: #5EEAD4 !important;
 }
 
 [data-testid="stCaptionContainer"] a:hover,
 [data-testid="stMarkdownContainer"] a:hover {
-    color: #C4B5FD !important;
+    color: #99F6E4 !important;
 }
 
 [data-testid="stSelectbox"] input::placeholder {
@@ -713,15 +772,15 @@ div[data-baseweb="select"] {
 }
 
 [data-testid="stButtonGroup"] button:hover {
-    border-color: #8B5CF6 !important;
+    border-color: #14B8A6 !important;
 }
 
 [data-testid="stButtonGroup"] button[aria-pressed="true"],
 [data-testid="stButtonGroup"] button[aria-checked="true"],
 [data-testid="stButtonGroup"] button[data-selected="true"],
 [data-testid="stButtonGroup"] button[kind$="Active"] {
-    background-color: rgba(139, 92, 246, .25) !important;
-    border-color: #8B5CF6 !important;
+    background-color: rgba(20, 184, 166, .22) !important;
+    border-color: #14B8A6 !important;
 }
 
 [data-testid="stButtonGroup"] button[aria-pressed="true"] p,
@@ -760,6 +819,8 @@ div[data-baseweb="select"] {
 
 </style>
 """, unsafe_allow_html=True)
+
+glass_background.show()
 
 # ============================================================
 # CONNECT TO OLLAMA
@@ -1830,67 +1891,6 @@ def set_session_done(index, key):
     save()
 
 
-def plan_day_label(value):
-    if not uses_ab_calendar():
-        return ""
-    try:
-        day = datetime.strptime(str(value), "%Y-%m-%d").date()
-    except ValueError:
-        return ""
-    return ab_calendar.short_label(day)
-
-
-def show_calendar_export(sessions, zone_name):
-    with st.container(border=True):
-        st.subheader("📤 Export to your calendar")
-
-        include_due = st.toggle(
-            "Include assignment due dates",
-            value=True,
-            key="export_include_due"
-        )
-
-        session_count, due_count = calendar_export.count_events(
-            sessions,
-            st.session_state.assignments,
-            include_due
-        )
-
-        if not session_count and not due_count:
-            st.caption("There's nothing with a date to export yet.")
-            return
-
-        summary = f"{session_count} study session{'s' if session_count != 1 else ''}"
-        if include_due:
-            summary += f" and {due_count} due date{'s' if due_count != 1 else ''}"
-        st.caption(f"{summary}, each study session with a 10-minute reminder.")
-
-        st.download_button(
-            "📅 Download calendar file (.ics)",
-            data=calendar_export.build_ics(
-                sessions,
-                st.session_state.assignments,
-                zone_name,
-                include_due
-            ),
-            file_name="studyflow-study-plan.ics",
-            mime="text/calendar",
-            type="primary",
-            use_container_width=True,
-            key="export_download"
-        )
-
-        with st.expander("How to add it to Google Calendar"):
-            st.markdown(
-                "1. Open **calendar.google.com** on a computer.\n"
-                "2. Click **⚙️ Settings**, then **Import & export**.\n"
-                "3. Choose the file you downloaded and click **Import**.\n\n"
-                "Tip: make a new calendar called *StudyFlow* first and import into it, "
-                "so you can hide or delete the whole plan in one click. "
-                "If you make a new plan later, clear out the old one before importing again. "
-                "The file also works with Apple Calendar and Outlook."
-            )
-
 
 def generate_plan():
     if not st.session_state.assignments:
@@ -2706,7 +2706,7 @@ with tab1:
                     )
                     
                     if st.button(
-                        "📇 Create Flashcards",
+                        ":material/style: Create Flashcards",
                         key=f"flashcards_create_{i}"
                     ):
                         set_is_unique = True
@@ -3096,13 +3096,13 @@ with analytics_tab:
 
         st.markdown(
             stat_tiles_html([
-                ("schedule", "#3B82F6", "Study time (7d)",
+                ("schedule", "#0F766E", "Study time (7d)",
                  analytics.pretty_minutes(sum(day["minutes"] for day in week))),
-                ("check_circle", "#10B981", "Completed",
+                ("check_circle", "#0F766E", "Completed",
                  f"{stats['done']} / {stats['total']}"),
-                ("local_fire_department", "#F97316", "Day streak",
+                ("local_fire_department", "#0F766E", "Day streak",
                  f"{streak} day{'s' if streak != 1 else ''}"),
-                ("adjust", "#8B5CF6", "Avg per task",
+                ("adjust", "#0F766E", "Avg per task",
                  analytics.pretty_minutes(analytics.average_minutes(sessions)))
             ]),
             unsafe_allow_html=True
@@ -3133,7 +3133,7 @@ with analytics_tab:
                 most = max(value["Hours"] for value in values)
                 chart = (
                     alt.Chart(alt.Data(values=values))
-                    .mark_bar(color="#8B5CF6", cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": 0.6})
+                    .mark_bar(color="#14B8A6", cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": 0.6})
                     .encode(
                         x=alt.X("Day:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
                         y=alt.Y(
@@ -3159,7 +3159,7 @@ with analytics_tab:
                 if subjects:
                     values = [{"Subject": row["course"], "Assignments": row["count"]} for row in subjects]
                     st.altair_chart(
-                        styled_chart(horizontal_bars(values, "Subject", "Assignments", "#3987E5")),
+                        styled_chart(horizontal_bars(values, "Subject", "Assignments", "#14B8A6")),
                         use_container_width=True,
                         theme=None
                     )
@@ -3177,7 +3177,7 @@ with analytics_tab:
                         for row in analytics.difficulty_breakdown(assignments)
                     ]
                     st.altair_chart(
-                        styled_chart(horizontal_bars(values, "Difficulty", "Assignments", "#D95926")),
+                        styled_chart(horizontal_bars(values, "Difficulty", "Assignments", "#14B8A6")),
                         use_container_width=True,
                         theme=None
                     )
@@ -3271,16 +3271,16 @@ st.html(f'''<style>
 </style>''')
 
 def finished_set(set):
-    st.success("✅ You've finished this set of flashcards! You can add more in the 📝 Assignments tab.")
-    if st.button('📇 Practice again'):
+    st.success("You've finished this set of flashcards! You can add more in the Assignments tab.", icon=":material/task_alt:")
+    if st.button(':material/replay: Practice again'):
         st.session_state.flashcard_sets[0].update(st.session_state.flashcard_sets[set]['known'].pop())
 
 
 with tab4:
-    st.header("📇 Flashcards")
+    st.header(":material/style: Flashcards")
     if not st.session_state.flashcard_sets:
         st.info(
-            "No flashcards yet. Add some in the 📝 Assignments tab."
+            "No flashcards yet. Add some in the Assignments tab."
         )
     else:
         for set in range(0, len(st.session_state.flashcard_sets)):
@@ -3331,9 +3331,9 @@ with tab4:
                 else:
                     finished_set(set)
                 
-                with st.expander("📄 View raw JSON data"):    
+                with st.expander(":material/data_object: View raw JSON data"):    
                     st.json(st.session_state.flashcard_sets[set])
-                if st.button("🗑️ Delete this set", type="secondary", key=f'delete_set_{set}'):
+                if st.button(":material/delete: Delete this set", type="secondary", key=f'delete_set_{set}'):
                     del st.session_state.flashcard_sets[set]
                     st.session_state.card_idxs[set] = [None, None, None]
                     st.rerun()
