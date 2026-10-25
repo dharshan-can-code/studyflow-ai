@@ -1,0 +1,853 @@
+/* ============================================================
+   FONTS
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
+
+
+/* ============================================================
+   MAIN APP
+   ============================================================ */
+
+.stApp {
+    background-color: #0F172A;
+    color: #F8FAFC;
+}
+
+
+[data-testid="stHeader"] {
+    background-color: #0F172A;
+}
+
+[data-testid="stHeader"] > div {
+    background-color: #0F172A;
+}
+
+
+.main .block-container {
+    color: #F8FAFC;
+}
+
+
+/* ============================================================
+   TEXT
+   ============================================================ */
+
+p {
+    color: #F8FAFC !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+label {
+    color: #CBD5E1 !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+small {
+    color: #94A3B8 !important;
+}
+
+
+/* ============================================================
+   HEADINGS
+   ============================================================ */
+
+h1, h2, h3 {
+    font-family: 'Sora', sans-serif !important;
+    color: #F8FAFC !important;
+}
+
+
+/* ============================================================
+   STUDYFLOW AI TITLE
+   ============================================================ */
+
+.studyflow-title {
+    font-family: 'Sixtyfour', monospace !important;
+    font-size: 42px;
+    font-weight: 400 !important;
+    letter-spacing: -1px;
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.studyflow-title .brand-name {
+    color: #F8FAFC !important;
+    font-family: 'Sixtyfour', monospace !important;
+}
+
+.studyflow-title .brand-ai {
+    color: #2DD4BF !important;
+    font-family: 'Sixtyfour', monospace !important;
+}
+
+
+/* ============================================================
+   SUBTITLE
+   ============================================================ */
+
+.studyflow-subtitle {
+    font-family: 'Inter', sans-serif !important;
+    color: #94A3B8 !important;
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+
+/* ============================================================
+   TEXT INPUTS
+   ============================================================ */
+
+.stTextInput input {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+}
+
+.stTextInput input::placeholder {
+    color: #64748B !important;
+    opacity: 1 !important;
+}
+
+.stTextInput input:focus {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+
+/* ============================================================
+   TEXT AREAS
+   ============================================================ */
+
+.stTextArea textarea {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+}
+
+.stTextArea textarea::placeholder {
+    color: #64748B !important;
+    opacity: 1 !important;
+}
+
+.stTextArea textarea:focus {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+
+/* ============================================================
+   SELECT BOX
+   ============================================================ */
+
+.stSelectbox [data-baseweb="select"] > div {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+}
+
+.stSelectbox [data-baseweb="select"] span {
+    color: #F8FAFC !important;
+}
+
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.stButton button {
+    background-color: #0F766E !important;
+    color: #FFFFFF !important;
+
+    border: none !important;
+    border-radius: 10px !important;
+
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+
+    transition: background-color 0.2s ease;
+}
+
+.stButton button:hover {
+    background-color: #0D9488 !important;
+    color: #FFFFFF !important;
+}
+
+.stButton button:focus {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stCheckbox"] label:has(input[role="switch"]:not(:checked)) > span + div {
+    background-color: #334155 !important;
+}
+
+.stButton button:disabled,
+.stButton button:disabled:hover {
+    background-color: #1E293B !important;
+    color: #64748B !important;
+    cursor: not-allowed;
+}
+
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+
+[data-testid="stSidebar"] {
+    background-color: #111C33 !important;
+}
+
+[data-testid="stSidebar"] * {
+    font-family: 'Inter', sans-serif;
+}
+
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #F8FAFC !important;
+}
+
+[data-testid="stSidebar"] label {
+    color: #CBD5E1 !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stFullScreenFrame"]:has([data-testid="stImage"]) > div {
+    margin: 0 auto;
+}
+
+
+/* ============================================================
+   TABS
+   ============================================================ */
+
+.stTabs [data-baseweb="tab-list"] {
+    background-color: transparent !important;
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    color: #94A3B8 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600;
+}
+
+.stTabs [aria-selected="true"] {
+    color: #2DD4BF !important;
+}
+
+
+/* ============================================================
+   DIVIDERS
+   ============================================================ */
+
+hr {
+    border: none !important;
+    border-top: 1px solid #1E293B !important;
+}
+
+
+/* ============================================================
+   CONTAINERS / CARDS
+   ============================================================ */
+
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: #1E293B !important;
+
+    border: none !important;
+    border-radius: 12px !important;
+}
+
+/* ============================================================
+   EXTENDERS
+   ============================================================ */
+
+details:open summary {
+    background-color: #0f172a !important;
+}
+
+
+/* ============================================================
+   CHAT
+   ============================================================ */
+
+[data-testid="stChatMessage"] {
+    background: rgba(20, 29, 50, .84) !important;
+    border: 1px solid rgba(148, 163, 184, .12) !important;
+    border-radius: 16px !important;
+    padding: 1rem 1.1rem !important;
+    margin: .75rem 0 !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .10);
+}
+
+[data-testid="stChatMessage"] p,
+[data-testid="stChatMessage"] li {
+    line-height: 1.65;
+}
+
+[data-testid="stChatMessage"] li,
+[data-testid="stChatMessage"] td,
+[data-testid="stChatMessage"] th,
+[data-testid="stChatMessage"] blockquote,
+[data-testid="stChatMessage"] h4,
+[data-testid="stChatMessage"] h5 {
+    color: #F8FAFC !important;
+}
+
+[data-testid="stChatMessage"] li::marker {
+    color: #5EEAD4;
+}
+
+[data-testid="stChatInput"] {
+    background: #18233d !important;
+    border: 1px solid rgba(94, 234, 212, .3) !important;
+    border-radius: 15px !important;
+}
+
+[data-testid="stChatInput"] > div {
+    background: transparent !important;
+    border: none !important;
+}
+
+[data-testid="stChatInput"] textarea {
+    color: #F8FAFC !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+[data-testid="stChatInput"] textarea::placeholder {
+    color: #8491a8 !important;
+}
+
+[data-testid="stChatInput"] button {
+    color: #5EEAD4 !important;
+}
+
+.chat-kicker {
+    color: #5EEAD4;
+    font-family: 'DM Mono', monospace;
+    font-size: .72rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    margin-bottom: .4rem;
+}
+
+.chat-subtitle {
+    color: #a9b5c9 !important;
+    font-size: 1rem;
+    line-height: 1.65;
+    max-width: 39rem;
+    margin: .25rem 0 1.25rem;
+}
+
+.welcome-card {
+    background: linear-gradient(115deg, rgba(20, 184, 166, .16), rgba(10, 20, 30, .85));
+    border: 1px solid rgba(153, 246, 228, .22);
+    border-radius: 18px;
+    padding: 1.15rem 1.25rem;
+    margin: .5rem 0 1.5rem;
+    color: #E6FFFA;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+}
+
+.welcome-card strong {
+    color: #fff;
+}
+
+
+/* ============================================================
+   GENERAL STREAMLIT COMPONENT BORDERS
+   ============================================================ */
+
+div[data-baseweb="input"] {
+    border: none !important;
+}
+
+div[data-baseweb="textarea"] {
+    border: none !important;
+}
+
+div[data-baseweb="select"] {
+    border: none !important;
+}
+
+
+/* ============================================================
+   FILE UPLOADER
+   ============================================================ */
+
+[data-testid="stFileUploaderDropzone"] {
+    background-color: #1E293B !important;
+    border: 1px dashed #334155 !important;
+    border-radius: 10px !important;
+}
+
+[data-testid="stFileUploaderDropzone"] span,
+[data-testid="stFileUploaderDropzone"] small,
+[data-testid="stFileUploaderDropzone"] p {
+    color: #CBD5E1 !important;
+}
+
+[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+    background-color: #334155 !important;
+    color: #F8FAFC !important;
+    border: none !important;
+}
+
+
+/* ============================================================
+   GREETING AND SETUP
+   ============================================================ */
+
+.greeting {
+    font-family: 'Sora', sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: #F8FAFC;
+    margin-top: 4px;
+}
+
+.greeting-icon {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal;
+    font-size: 26px;
+    line-height: 1;
+    vertical-align: -4px;
+    color: #5EEAD4;
+    font-feature-settings: 'liga';
+}
+
+.greeting-date {
+    font-family: 'Inter', sans-serif;
+    color: #94A3B8;
+    font-size: 15px;
+    margin-bottom: 6px;
+}
+
+.wizard-title {
+    font-size: 30px;
+    text-align: center;
+    margin: 24px 0 16px;
+}
+
+
+/* ============================================================
+   ASSIGNMENT CARDS
+   ============================================================ */
+
+.assignment-type {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #94A3B8;
+}
+
+.assignment-name {
+    font-family: 'Sora', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #F8FAFC;
+    margin-bottom: 0.5rem;
+}
+
+
+/* ============================================================
+   ANALYTICS
+   ============================================================ */
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin: 4px 0 20px;
+}
+
+@media (max-width: 1100px) {
+    .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.stat-tile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    padding: 18px;
+    background-color: #1E293B;
+    border-radius: 12px;
+}
+
+.stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    color: #FFFFFF;
+    font-family: 'Material Symbols Rounded';
+    font-size: 24px;
+}
+
+.stat-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #94A3B8;
+}
+
+.stat-value {
+    font-family: 'Sora', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: #F8FAFC;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-family: 'Sora', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: #F8FAFC;
+}
+
+.card-icon {
+    font-family: 'Material Symbols Rounded';
+    font-size: 20px;
+    color: #5EEAD4;
+}
+
+.load-row {
+    margin-bottom: 14px;
+}
+
+.load-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #CBD5E1;
+}
+
+.load-count {
+    color: #94A3B8;
+    font-variant-numeric: tabular-nums;
+}
+
+.load-track {
+    height: 6px;
+    overflow: hidden;
+    background-color: #334155;
+    border-radius: 999px;
+}
+
+.load-fill {
+    height: 100%;
+    background-color: #14B8A6;
+    border-radius: 999px;
+}
+
+.load-empty {
+    color: #94A3B8 !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stIconMaterial"] {
+    font-family: 'Material Symbols Rounded' !important;
+}
+
+[data-testid="stToast"] {
+    background-color: #1E293B !important;
+    border: 1px solid #334155 !important;
+}
+
+[data-testid="stToast"] [data-testid="stIconMaterial"] {
+    color: #5EEAD4 !important;
+}
+
+.stButton button[kind="tertiary"] {
+    background: transparent !important;
+    color: #94A3B8 !important;
+    font-weight: 500 !important;
+}
+
+.stButton button[kind="tertiary"]:hover {
+    background: transparent !important;
+    color: #F8FAFC !important;
+}
+
+[data-testid="stProgressBarTrack"],
+[data-testid="stProgress"] [role="progressbar"] > div {
+    background-color: #1E293B !important;
+}
+
+[data-testid="stProgressBarTrack"] > div,
+[data-testid="stProgress"] [role="progressbar"] > div > div {
+    background-color: #14B8A6 !important;
+}
+
+[data-testid="stSelectbox"] [role="group"],
+[data-testid="stNumberInputContainer"],
+[data-testid="stNumberInput"] input,
+[data-testid="stTimeInputTimeDisplay"],
+[data-testid="stTimeInput"] [data-baseweb="select"] > div,
+[data-testid="stTimeInput"] [data-baseweb="input"],
+[data-testid="stDateInput"] [data-baseweb="input"] {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+    border-radius: 10px !important;
+}
+
+[data-testid="stSelectbox"] [role="group"] *,
+[data-testid="stNumberInputContainer"] input,
+[data-testid="stTimeInput"] input,
+[data-testid="stTimeInputTimeDisplay"] *,
+[data-testid="stDateInput"] input {
+    color: #F8FAFC !important;
+    background-color: transparent !important;
+}
+
+[data-testid="stDialog"] > div {
+    background-color: #111C33 !important;
+    border: 1px solid #334155 !important;
+}
+
+[data-testid="stDialog"] button[aria-label="Close"] {
+    color: #F8FAFC !important;
+}
+
+.chat-thinking {
+    color: #94A3B8;
+    font-style: italic;
+}
+
+[data-testid="stCaptionContainer"] a,
+[data-testid="stMarkdownContainer"] a {
+    color: #5EEAD4 !important;
+}
+
+[data-testid="stCaptionContainer"] a:hover,
+[data-testid="stMarkdownContainer"] a:hover {
+    color: #99F6E4 !important;
+}
+
+[data-testid="stSelectbox"] input::placeholder {
+    color: #94A3B8 !important;
+    opacity: 1 !important;
+}
+
+[data-testid="stNumberInputContainer"] button {
+    background-color: #334155 !important;
+    color: #F8FAFC !important;
+}
+
+[role="listbox"],
+[data-baseweb="popover"] ul,
+[data-baseweb="popover"] [role="dialog"] {
+    background-color: #1E293B !important;
+}
+
+[role="option"],
+[role="option"] * {
+    color: #F8FAFC !important;
+}
+
+[role="option"]:hover,
+[role="option"][data-focused="true"],
+[role="option"][aria-selected="true"] {
+    background-color: #334155 !important;
+}
+
+[data-testid="stButtonGroup"] button {
+    background-color: #1E293B !important;
+    border: 1px solid #334155 !important;
+    color: #CBD5E1 !important;
+}
+
+[data-testid="stButtonGroup"] button p {
+    color: #CBD5E1 !important;
+}
+
+[data-testid="stButtonGroup"] button:hover {
+    border-color: #14B8A6 !important;
+}
+
+[data-testid="stButtonGroup"] button[aria-pressed="true"],
+[data-testid="stButtonGroup"] button[aria-checked="true"],
+[data-testid="stButtonGroup"] button[data-selected="true"],
+[data-testid="stButtonGroup"] button[kind$="Active"] {
+    background-color: rgba(20, 184, 166, .22) !important;
+    border-color: #14B8A6 !important;
+}
+
+[data-testid="stButtonGroup"] button[aria-pressed="true"] p,
+[data-testid="stButtonGroup"] button[aria-checked="true"] p,
+[data-testid="stButtonGroup"] button[data-selected="true"] p,
+[data-testid="stButtonGroup"] button[kind$="Active"] p {
+    color: #F8FAFC !important;
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 640px) {
+    .studyflow-title {
+        font-size: 32px;
+    }
+
+    .wizard-title {
+        font-size: 26px;
+        margin: 0 0 12px;
+    }
+
+    .greeting {
+        font-size: 22px;
+    }
+
+    .assignment-name {
+        font-size: 1.3rem;
+    }
+
+    [data-testid="stTab"][aria-selected="false"] p {
+        font-size: 0 !important;
+    }
+
+    [data-testid="stTab"][aria-selected="false"] p span[role="img"] {
+        font-size: 1.35rem;
+    }
+
+    [data-testid="stTabsScrollRight"] {
+        background: linear-gradient(to right, rgba(5, 11, 16, 0), #050B10 45%) !important;
+        color: #F8FAFC !important;
+    }
+
+    [data-testid="stTabsScrollLeft"] {
+        background: linear-gradient(to left, rgba(5, 11, 16, 0), #050B10 45%) !important;
+        color: #F8FAFC !important;
+    }
+
+    [data-testid="stColumn"]:not(:has(.stElementContainer)) {
+        display: none;
+    }
+
+    .st-key-wizard_nav [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: 12px;
+    }
+
+    .st-key-wizard_nav [data-testid="stColumn"] {
+        flex: 1 1 0 !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    [class*="st-key-assignment_card_"] [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: 8px;
+    }
+
+    [class*="st-key-assignment_card_"] [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"] [data-testid="stColumn"] {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    [class*="st-key-assignment_card_"] [data-testid="stColumn"] [data-testid="stVerticalBlock"] {
+        gap: 0.5rem;
+    }
+
+    [class*="st-key-session_card_"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        row-gap: 0.4rem;
+    }
+
+    [class*="st-key-session_card_"] [data-testid="stColumn"]:first-child {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    [class*="st-key-session_card_"] [data-testid="stColumn"]:nth-child(2) {
+        flex: 1 1 0 !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    [class*="st-key-session_card_"] [data-testid="stColumn"] [data-testid="stVerticalBlock"] {
+        gap: 0.35rem;
+    }
+
+    .stat-tile {
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .stat-icon {
+        width: 38px;
+        height: 38px;
+        font-size: 21px;
+    }
+
+    .stat-value {
+        font-size: 19px;
+    }
+
+    [data-testid="stChatMessage"] {
+        padding: 0.85rem 0.9rem !important;
+    }
+
+    .welcome-card {
+        padding: 1rem;
+    }
+}
+
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0F172A;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+}
+
+[data-testid="stSidebarCollapseButton"] button {
+    color: #F8FAFC !important;
+}
+
+[data-testid="stSidebarCollapseButton"] button span {
+    font-family: 'Material Symbols Rounded' !important;
+    font-size: 24px !important;
+}

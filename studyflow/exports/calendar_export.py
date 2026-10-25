@@ -99,7 +99,7 @@ def session_title(session):
     course = str(session.get("course") or "").strip()
     assignment = str(session.get("assignment") or "").strip()
     label = " · ".join(part for part in (course, assignment) if part)
-    return f"📚 Study: {label}" if label else "📚 Study session"
+    return f"Study: {label}" if label else "Study session"
 
 
 def session_details(session):
@@ -154,7 +154,7 @@ def _due_event(assignment, stamp):
         f"DTSTAMP:{stamp}",
         f"DTSTART;VALUE=DATE:{day:%Y%m%d}",
         f"DTEND;VALUE=DATE:{day + timedelta(days=1):%Y%m%d}",
-        f"SUMMARY:{_escape(f'📌 Due: {name}' + (f' ({course})' if course else ''))}",
+        f"SUMMARY:{_escape(f'Due: {name}' + (f' ({course})' if course else ''))}",
         f"DESCRIPTION:{_escape(chr(10).join(details))}",
         "TRANSP:TRANSPARENT",
         "END:VEVENT"

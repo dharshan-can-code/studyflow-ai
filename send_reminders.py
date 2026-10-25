@@ -3,7 +3,7 @@ import sys
 
 from supabase import create_client
 
-import reminder_email
+from studyflow.exports import reminder_email
 
 
 # ============================================================

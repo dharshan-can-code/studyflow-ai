@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
 
-import ab_calendar
+from studyflow.planning import ab_calendar
 
 
 DEFAULT_ZONE = "America/New_York"
@@ -139,7 +139,7 @@ def build_email(student, today, app_url, unsubscribe_url):
                 text.append(f"  {task}")
             rows_html.append(
                 "<tr>"
-                f"<td style='padding:8px 12px;color:#6D28D9;white-space:nowrap;vertical-align:top'>{html.escape(time_range)}</td>"
+                f"<td style='padding:8px 12px;color:#0F766E;white-space:nowrap;vertical-align:top'>{html.escape(time_range)}</td>"
                 f"<td style='padding:8px 12px'><strong>{html.escape(title)}</strong>"
                 + (f"<br><span style='color:#475569'>{html.escape(task)}</span>" if task else "")
                 + "</td></tr>"
@@ -166,20 +166,20 @@ def build_email(student, today, app_url, unsubscribe_url):
 
     body_html = (
         "<div style='font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0F172A'>"
-        "<h2 style='color:#7C3AED;margin-bottom:4px'>StudyFlow AI</h2>"
+        "<h2 style='color:#0F766E;margin-bottom:4px'>StudyFlow AI</h2>"
         f"<p style='margin-top:0'>{html.escape(greeting)}<br>Here's your plan for <strong>{html.escape(date_line)}</strong>.</p>"
     )
     if rows_html:
         body_html += (
             "<h3 style='margin-bottom:4px'>Today's study sessions</h3>"
-            "<table style='border-collapse:collapse;width:100%;background:#F5F3FF;border-radius:8px'>"
+            "<table style='border-collapse:collapse;width:100%;background:#F0FDFA;border-radius:8px'>"
             + "".join(rows_html)
             + "</table>"
         )
     if due_html:
         body_html += "<h3 style='margin-bottom:4px'>Coming up</h3><ul style='padding-left:20px'>" + "".join(due_html) + "</ul>"
     body_html += (
-        f"<p><a href='{html.escape(app_url)}' style='background:#7C3AED;color:#FFFFFF;padding:10px 16px;"
+        f"<p><a href='{html.escape(app_url)}' style='background:#0F766E;color:#FFFFFF;padding:10px 16px;"
         "border-radius:8px;text-decoration:none;display:inline-block'>Open StudyFlow</a></p>"
         "<p style='font-size:12px;color:#64748B'>You're getting this because you turned on daily reminders in StudyFlow AI. "
         f"<a href='{html.escape(unsubscribe_url)}' style='color:#64748B'>Turn off reminders</a></p>"
