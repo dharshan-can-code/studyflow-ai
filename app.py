@@ -2266,6 +2266,7 @@ def show_reminder_settings():
             ":material/send: Send a test email",
             use_container_width=True,
             disabled=not (reminders.get("enabled") and reminders.get("email")),
+            help="Save your reminder settings first, then send a test.",
             key="test_reminders_button"
         )
 
@@ -2287,7 +2288,15 @@ def show_reminder_settings():
                 st.session_state.reminders = storage.save_reminders(SUPABASE, st.session_state.student_id, updated)
             except Exception as error:
                 print("REMINDER SAVE FAILED:", error)
-                st.error("Couldn't save. Make sure supabase/add_reminders.sql was run in Supabase.")
+                if "reminders" in str(error):
+                    st.error(
+                        "Couldn't save because the database is missing the reminders column. "
+                        "Run supabase/add_reminders.sql in the Supabase SQL Editor."
+                    )
+                else:
+                    st.error("Couldn't save your reminder settings. Please try again.")
+                with st.expander("Technical details"):
+                    st.code(str(error))
             else:
                 st.session_state.flash = "Reminders turned on" if enabled else "Reminders turned off"
                 st.rerun()
@@ -3400,4 +3409,4 @@ with tab5:
 st.divider()
 st.caption(
     "StudyFlow AI • Powered by Ollama"
-)
+)
