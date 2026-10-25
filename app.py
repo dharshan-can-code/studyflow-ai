@@ -169,10 +169,9 @@ if "found_assignments" not in st.session_state:
 if "found_batch" not in st.session_state:
     st.session_state.found_batch = 0
 
-if 'card_idxs' not in st.session_state:
-    st.session_state.card_idxs = []
+if "flashcard_sets" not in st.session_state:
+    st.session_state.flashcard_sets = []
 
-#st.session_state.flashcard_sets = []
 if "assignment_form" not in st.session_state:
     st.session_state.assignment_form = 0
 
@@ -182,7 +181,7 @@ def prepare_saved_data():
     st.session_state.activities = setup.normalize_activities(st.session_state.activities)
     st.session_state.profile = setup.complete_profile(st.session_state.profile)
     st.session_state.study_style = setup.complete_study_style(st.session_state.study_style)
-    st.session_state.flashcard_sets = []
+    st.session_state.flashcard_sets = fcard.normalize_sets(st.session_state.get("flashcard_sets"))
 
 
 if "data_prepared" not in st.session_state:
@@ -334,6 +333,7 @@ def load_student():
     for field, value in storage.saved_data(student).items():
         st.session_state[field] = value
     st.session_state.reminders = student.get("reminders") or {}
+    st.session_state.flashcard_sets = student.get("flashcards") or []
 
     prepare_saved_data()
     setup.reset_form_state()
@@ -363,9 +363,35 @@ def save():
             st.toast("Couldn't save your latest changes. Check your connection.", icon=":material/warning:")
 
 
+def save_flashcards():
+    if SUPABASE is None or not st.session_state.get("student_id"):
+        return
+
+    try:
+        storage.save_flashcards(SUPABASE, st.session_state.student_id, st.session_state.flashcard_sets)
+    except Exception as error:
+        print("FLASHCARD SAVE FAILED:", error)
+        if not st.session_state.get("flashcard_save_warned"):
+            st.session_state.flashcard_save_warned = True
+            st.toast(
+                "Flashcards can't be saved to your account yet. "
+                "Run supabase/add_flashcards.sql in the Supabase SQL Editor.",
+                icon=":material/warning:"
+            )
+
+
+def delete_flashcard_set(set_id):
+    st.session_state.flashcard_sets = [
+        card_set for card_set in st.session_state.flashcard_sets
+        if card_set["id"] != set_id
+    ]
+    save_flashcards()
+
+
 def delete_my_data():
     storage.delete_student(SUPABASE, st.session_state.student_id)
     st.session_state.reminders = {}
+    st.session_state.flashcard_sets = []
 
     for field, empty in storage.SAVED_FIELDS.items():
         st.session_state[field] = empty()
@@ -611,6 +637,138 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None
 
 
 # ============================================================
+# FLASHCARD MAKER
+# ============================================================
+
+def generate_flashcards(prompt, images=None, spinner_text="Making flashcards..."):
+    with st.spinner(spinner_text):
+        result = ask_ai(
+            prompt,
+            fcard.SYSTEM_MESSAGE,
+            images=images,
+            model=VISION_MODEL if images else MODEL,
+            temperature=0.3
+        )
+
+    if result is None:
+        return None, ""
+
+    cards = fcard.clean_cards(result)
+    if len(cards) < fcard.MIN_CARDS:
+        st.error(
+            "The AI couldn't make good flashcards from that. Try again with a more specific topic, "
+            "or add the vocab words or topics you want."
+        )
+        return None, ""
+
+    return cards, result.get("title", "")
+
+
+def make_flashcards(assignment):
+    cards, _ = generate_flashcards(
+        fcard.flashcard_prompt(assignment, st.session_state.profile),
+        spinner_text=f"Making flashcards for {assignment.get('name') or 'this assignment'}..."
+    )
+    if not cards:
+        return
+
+    card_set = fcard.new_set(assignment.get("name"), assignment.get("course"), cards)
+    existing = fcard.find_set(st.session_state.flashcard_sets, assignment)
+    if existing is None:
+        st.session_state.flashcard_sets.append(card_set)
+    else:
+        fcard.reset_state(st.session_state.flashcard_sets[existing])
+        st.session_state.flashcard_sets[existing] = card_set
+    save_flashcards()
+    st.session_state.flash = (
+        f"Made {len(cards)} flashcards for {card_set['assignment']}. Open the Flashcards tab to study them."
+    )
+    st.rerun()
+
+
+def make_requested_flashcards(request, course="", count=fcard.TARGET_CARDS, notes="", images=None):
+    cards, title = generate_flashcards(
+        fcard.request_prompt(request, course, count, st.session_state.profile, notes, bool(images)),
+        images=images
+    )
+    if not cards:
+        return None
+
+    card_set = fcard.new_set(
+        fcard.set_title({"title": title}, request or "Flashcards from my notes"),
+        course,
+        cards,
+        source="request"
+    )
+    st.session_state.flashcard_sets.insert(0, card_set)
+    save_flashcards()
+    return card_set
+
+
+def show_flashcard_maker():
+    form = st.session_state.get("flashcard_form", 0)
+
+    with st.expander(
+        ":material/auto_awesome: Make your own flashcards",
+        expanded=not st.session_state.flashcard_sets
+    ):
+        request = st.text_area(
+            "What should the flashcards cover?",
+            placeholder="Example: Spanish 2 food vocab, the causes of World War I, or cell organelles and what they do",
+            key=f"flashcard_request_{form}"
+        )
+
+        course_options = ["Not for a specific course"] + setup.course_names(st.session_state.courses)
+        course_column, count_column = st.columns([2, 1])
+        with course_column:
+            course = st.selectbox("Course", course_options, key=f"flashcard_course_{form}")
+        with count_column:
+            count = st.number_input(
+                "Cards",
+                min_value=5,
+                max_value=fcard.MAX_CARDS,
+                value=fcard.TARGET_CARDS,
+                step=1,
+                key=f"flashcard_count_{form}"
+            )
+
+        notes_file = st.file_uploader(
+            "Photo or PDF of your notes (optional)",
+            type=uploads.IMAGE_TYPES + ["pdf"],
+            key=f"flashcard_file_{form}"
+        )
+
+        if st.button(":material/style: Make flashcards", type="primary", use_container_width=True, key=f"flashcard_make_{form}"):
+            if not request.strip() and notes_file is None:
+                st.warning("Type a topic or upload your notes first.")
+                return
+
+            notes = ""
+            images = None
+            if notes_file is not None:
+                try:
+                    if uploads.is_pdf(notes_file):
+                        notes = uploads.pdf_text(notes_file)
+                    else:
+                        images = [uploads.encode_image(notes_file)]
+                except ValueError as error:
+                    st.error(str(error))
+                    return
+
+            card_set = make_requested_flashcards(
+                request.strip(),
+                "" if course == course_options[0] else course,
+                count,
+                notes,
+                images
+            )
+            if card_set:
+                st.session_state.flashcard_form = form + 1
+                st.session_state.flash = f"Made {len(card_set['cards'])} flashcards: {card_set['assignment']}."
+                st.rerun()
+
+
+# ============================================================
 # ASSIGNMENT ANALYZER
 # ============================================================
 
@@ -769,6 +927,9 @@ def title_case(text):
     )
 
 
+MAX_STUDY_MATERIAL = 2000
+
+
 def normalize_assignment(assignment):
     priority = _text(assignment.get("priority"), "Medium").title()
     if priority not in ("Low", "Medium", "High"):
@@ -788,7 +949,8 @@ def normalize_assignment(assignment):
         "difficulty": min(5, max(1, _whole_number(assignment.get("difficulty"), 3))),
         "estimated_minutes": max(5, _whole_number(assignment.get("estimated_minutes"), 60)),
         "priority": priority,
-        "description": _text(assignment.get("description"), "")
+        "description": _text(assignment.get("description"), ""),
+        "study_material": _text(assignment.get("study_material"), "")[:MAX_STUDY_MATERIAL]
     }
 
 
@@ -893,6 +1055,12 @@ def edit_assignment_dialog(index):
         )
 
     description = st.text_area("Notes", value=assignment.get("description", ""), key=f"{key}_notes")
+    study_material = st.text_area(
+        "Study material",
+        value=assignment.get("study_material", ""),
+        placeholder="Vocab words, key terms, or topics. StudyFlow uses these to make your flashcards.",
+        key=f"{key}_study_material"
+    )
 
     save_column, cancel_column = st.columns(2)
     with save_column:
@@ -908,7 +1076,8 @@ def edit_assignment_dialog(index):
                     "difficulty": difficulty,
                     "estimated_minutes": minutes,
                     "priority": priority,
-                    "description": description
+                    "description": description,
+                    "study_material": study_material
                 })
                 save()
                 st.session_state.flash = "Assignment updated. Regenerate your study plan to include the changes."
@@ -961,7 +1130,8 @@ Use exactly this format:
             "difficulty": 3,
             "estimated_minutes": 60,
             "priority": "Medium",
-            "description": ""
+            "description": "",
+            "study_material": ""
         }}
     ]
 }}
@@ -985,6 +1155,8 @@ Rules:
 - Estimate realistic focused work time.
 - The description lists every useful detail the student or the file gave: chapters, sections, page numbers,
   problem numbers, topics covered, and requirements. Never invent details.
+- study_material copies the actual study content listed for this item: vocabulary words, key terms, concepts,
+  formulas, people, dates, or review questions (up to about 150 words). Leave it blank if none are listed.
 - If nothing is found, return {{"assignments": []}}.
 """
     result = ask_ai(
@@ -1281,7 +1453,9 @@ Always write times in 12-hour format with AM or PM (for example 4:30 PM), never 
 
 ASSIGNMENT_TAG = re.compile(r"<add_assignment>(.*?)</add_assignment>", re.S)
 
-UNFINISHED_TAG = re.compile(r"<add_assignment>.*$", re.S)
+FLASHCARD_TAG = re.compile(r"<make_flashcards>(.*?)</make_flashcards>", re.S)
+
+UNFINISHED_TAG = re.compile(r"<(add_assignment|make_flashcards)>.*$", re.S)
 
 
 def chat_context():
@@ -1315,6 +1489,16 @@ def chat_context():
     - {COURSE_RULE}
     - Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
     - Never use these tags for anything else, and never mention them to the student.
+
+    Making flashcards:
+    If, and only if, the student asks you to make flashcards, StudyFlow makes them for you.
+    Reply with one short sentence saying you're making them, then put one line at the very end of your reply:
+    <make_flashcards>{{"request": "", "course": "", "count": 12}}</make_flashcards>
+    - request describes exactly what the cards should cover, with every detail the student gave
+      (topic, unit, vocab words, or "the attached notes" if they sent a photo).
+    - course is one of the student's courses, or blank if it doesn't fit one.
+    - count is 5-20. Use the number the student asked for, or 12.
+    - Never write the flashcards yourself in the reply, and never mention the tag to the student.
 """
 
 
@@ -1337,12 +1521,32 @@ def pull_assignment_tags(reply):
             assignment["course"] = guess_course(assignment)
             added.append(assignment)
 
-    clean_reply = UNFINISHED_TAG.sub("", ASSIGNMENT_TAG.sub("", reply)).strip()
+    clean_reply = UNFINISHED_TAG.sub("", FLASHCARD_TAG.sub("", ASSIGNMENT_TAG.sub("", reply))).strip()
     return clean_reply, added
 
 
+def pull_flashcard_requests(reply):
+    requests = []
+    for raw in FLASHCARD_TAG.findall(reply):
+        raw = raw.strip()
+        for fence in ("```json", "```"):
+            raw = raw.removeprefix(fence)
+        raw = raw.removesuffix("```").strip()
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            requests.append({
+                "request": str(data.get("request") or "").strip(),
+                "course": str(data.get("course") or "").strip(),
+                "count": fcard.clamp_count(data.get("count"))
+            })
+    return requests[:2]
+
+
 def visible_reply(text):
-    text = UNFINISHED_TAG.sub("", ASSIGNMENT_TAG.sub("", text))
+    text = UNFINISHED_TAG.sub("", FLASHCARD_TAG.sub("", ASSIGNMENT_TAG.sub("", text)))
     return re.sub(r"<[a-z_]*$", "", text).strip()
 
 
@@ -1389,6 +1593,7 @@ def chatbot(message):
         st.error("The AI sent back an empty reply. Please try again.")
         return None
 
+    flashcard_requests = pull_flashcard_requests(reply)
     reply, added = pull_assignment_tags(reply)
 
     if added:
@@ -1397,6 +1602,29 @@ def chatbot(message):
         if not reply:
             names = ", ".join(f"**{assignment['name']}**" for assignment in added)
             reply = f"Added {names} to your assignments."
+
+    if flashcard_requests:
+        if reply:
+            placeholder.markdown(reply)
+        images = next(
+            (message.get("images") for message in reversed(st.session_state.messages)
+             if message["role"] == "user"),
+            None
+        ) or None
+        made = []
+        for item in flashcard_requests:
+            course = item["course"] if item["course"] in setup.course_names(st.session_state.courses) else ""
+            card_set = make_requested_flashcards(item["request"], course, item["count"], images=images)
+            if card_set:
+                made.append(card_set)
+        for card_set in made:
+            reply += (
+                f"\n\n:material/style: I made **{len(card_set['cards'])} flashcards**: *{card_set['assignment']}*. "
+                "Open the **Flashcards** tab to study them."
+            )
+        if not made:
+            reply += "\n\nI couldn't make those flashcards this time. Try asking again with a more specific topic."
+        reply = reply.strip()
 
     if not reply:
         placeholder.empty()
@@ -1974,47 +2202,15 @@ with tab1:
                         )
                     )
                     
+                    has_flashcards = fcard.find_set(st.session_state.flashcard_sets, assignment) is not None
                     if st.button(
-                        ":material/style: Create Flashcards",
-                        key=f"flashcards_create_{i}"
+                        ":material/style: Remake Flashcards" if has_flashcards else ":material/style: Create Flashcards",
+                        key=f"flashcards_create_{i}",
+                        help="Make a new set of flashcards for this assignment with AI"
                     ):
-                        set_is_unique = True
-                        state = st.session_state.profile.get('region') or 'Virginia'
-                        st.session_state.flashcard_sets.append(
-                            ask_ai(
-                                f"""
-                                You are a professional flashcard maker and I am a student in need of flashcards.
-                                You need to create a set of vocabulary flashcards for {assignment.get('name')} using the {state} curriculum.
-                                Make sure the cards are only for the unit specified (if present) in {state} standard curriculum.
-                                Return only in valid JSON using this format:
-                                {{
-                                    'assignment': 'name'
-                                    'card 1 word': 'definition',
-                                    'card 2 word': 'definition',
-                                    ... and so on
-                                }}
-                                """,
-                                "You are a professional flashcard maker"
-                            ) 
-                        )
-                        for set in st.session_state.flashcard_sets[0:-1]:
-                            if set.get('assignment') == assignment.get('name'):
-                                st.session_state.flashcard_sets[-1].pop()
-                                set_is_unique = False
-                        if set_is_unique:
-                            st.success(
-                                f"Flashcards for {assignment.get('name')} created!"
-                            )
-                            set = list(st.session_state.flashcard_sets[-1].items())
-                            set.insert(1, ('priority', assignment.get('priority')))
-                            set.insert(-1,('known', {}))
-                            st.session_state.flashcard_sets[-1] = dict(set)
-                        else:
-                            st.warning(
-                                f"Flashcards for {assignment.get('name')} already exist!"
-                            )
-                            
-                                
+                        make_flashcards(assignment)
+                    if has_flashcards:
+                        st.caption(":material/check_circle: Flashcards are ready in the Flashcards tab.")
 
                 with col2:
                     st.write(
@@ -2214,8 +2410,9 @@ with tab3:
         if not st.session_state.messages:
             welcome_slot.markdown(
                 '<div class="welcome-card"><strong>Hi, I\'m StudyFlow AI </strong><br>'
-                'Tell me about a test, ask me to explain something, or say '
-                '"add my bio test on Friday" and I\'ll put it in your planner.</div>',
+                'Tell me about a test, ask me to explain something, say '
+                '"add my bio test on Friday" to put it in your planner, or '
+                '"make flashcards on the causes of World War I".</div>',
                 unsafe_allow_html=True
             )
 
@@ -2255,13 +2452,17 @@ with tab3:
                 render_chat_message(user_message)
 
                 assignment_count = len(st.session_state.assignments)
+                flashcard_count = len(st.session_state.flashcard_sets)
 
                 with st.chat_message("assistant", avatar=AVATAR_PATH):
                     chatbot(message_text)
 
                     save()
 
-                    if len(st.session_state.assignments) > assignment_count:
+                    if (
+                        len(st.session_state.assignments) > assignment_count
+                        or len(st.session_state.flashcard_sets) > flashcard_count
+                    ):
                         st.rerun()
 
     components.html(
@@ -2503,110 +2704,31 @@ with analytics_tab:
 # FLASHCARDS TAB
 # ============================================================
 
-st.html(f'''<style>
-
-{', '.join('.st-key-flashcard_' + str(set) for set in range(len(st.session_state.flashcard_sets)))} {{
-    align-items: center !important;
-    justify-content: center !important;
-}}
-
-{', '.join('.st-key-flashcard_' + str(set) + ' div button' for set in range(len(st.session_state.flashcard_sets)))} {{
-    border: 0.5px solid #161C2F !important;
-    border-radius: 8px !important;
-    height: 500px !important;
-    display: flex !important;
-}}
-
-{', '.join('.st-key-ik_' + str(set) for set in range(len(st.session_state.flashcard_sets)))}, {', '.join('.st-key-idk_' + str(set) for set in range(len(st.session_state.flashcard_sets)))} {{
-    border: 0.5px solid #161C2F !important;
-    border-radius: 8px !important;
-}}
-
-{', '.join('.st-key-ik_' + str(set) + ' div button div span' for set in range(len(st.session_state.flashcard_sets)))} {{
-    color: lime;
-    font-size: 25pt !important;
-}}
-
-{', '.join('.st-key-idk_' + str(set) + ' div button div span' for set in range(len(st.session_state.flashcard_sets)))} {{
-    color: red;
-    font-size: 25pt !important;
-}}
-
-{', '.join('.st-key-flashcard_' + str(set) + ' div button div span span div' for set in range(len(st.session_state.flashcard_sets)))} {{
-    font-size: 25pt !important;
-    padding: 50px !important;
-}}
-
-</style>''')
-
-def finished_set(set):
-    st.success("You've finished this set of flashcards! You can add more in the Assignments tab.", icon=":material/task_alt:")
-    if st.button(':material/replay: Practice again'):
-        st.session_state.flashcard_sets[0].update(st.session_state.flashcard_sets[set]['known'].pop())
-
-
 with tab4:
     st.header(":material/style: Flashcards")
-    if not st.session_state.flashcard_sets:
+    show_flashcard_maker()
+    flashcard_sets = st.session_state.flashcard_sets
+
+    if not flashcard_sets:
         st.info(
-            "No flashcards yet. Add some in the Assignments tab."
+            "No flashcards yet. Make your own above, press **Create Flashcards** on an assignment, "
+            "or ask the AI Assistant to make some."
         )
     else:
-        for set in range(0, len(st.session_state.flashcard_sets)):
+        st.markdown(
+            '<p class="chat-subtitle">Tap a card to flip it, then mark whether you knew it. '
+            "Use Still learning to go back over the cards you missed.</p>",
+            unsafe_allow_html=True
+        )
+        for card_set in flashcard_sets:
+            label = card_set["assignment"]
+            if card_set["course"]:
+                label += f" · {card_set['course']}"
             with st.expander(
-                st.session_state.flashcard_sets[set].get('assignment')
-                ):
-                try:
-                    side = st.session_state.card_idxs[set][2] + 0
-                except:
-                    side = 0
-                try:
-                    card_idx = st.session_state.card_idxs[set][1] + 0
-                except:
-                    card_idx = 0
-                
-                if type(list(st.session_state.flashcard_sets[set].keys())[card_idx + 2]) is not dict:
-                    side = fcard.draw(
-                    side, 
-                    list(st.session_state.flashcard_sets[set])[card_idx + 2], 
-                    list(st.session_state.flashcard_sets[set].values())[card_idx + 2],
-                    set
-                    )
-                    idk, ik = st.columns(2)
-                    if idk.button(icon=":material/close:", label='', width='stretch', type='tertiary', key=f'idk_{set}'):
-                        card_idx += 1
-                        side = 0
-                    if ik.button(icon=":material/check:", label='', width='stretch', type='tertiary', key=f'ik_{set}'):    
-                        card = list(st.session_state.flashcard_sets[set].values())[card_idx + 2]
-                        card_key = list(st.session_state.flashcard_sets[set].keys())[card_idx + 2]
-                        st.session_state.flashcard_sets[set].pop(list(st.session_state.flashcard_sets[set])[card_idx + 2])
-                        st.session_state.flashcard_sets[set]['known'].update({
-                            card_key: card
-                        })
-                        side = 0
-                    if len(st.session_state.card_idxs) == set:
-                        prev_side = 0
-                        st.session_state.card_idxs.insert(set, [set, card_idx, side])
-                    elif len(st.session_state.card_idxs) > set:
-                        prev_side = st.session_state.card_idxs[set][2]
-                        st.session_state.card_idxs[set] = [set, card_idx, side]
-                    else:
-                        for i in range(set - len(st.session_state.card_idxs)):
-                            st.session_state.card_idxs.insert(i, [None, None, None])
-                        prev_side = st.session_state.card_idxs[set][2]
-                        st.session_state.card_idxs[set] = [set, card_idx, side]
-                    if side != prev_side:
-                        st.rerun()
-                else:
-                    finished_set(set)
-                
-                with st.expander("View raw JSON data"):    
-                    st.json(st.session_state.flashcard_sets[set])
-                if st.button(":material/delete: Delete this set", type="secondary", key=f'delete_set_{set}'):
-                    del st.session_state.flashcard_sets[set]
-                    st.session_state.card_idxs[set] = [None, None, None]
-                    st.rerun()
-
+                f":material/style: {label} ({len(card_set['cards'])} cards)",
+                expanded=len(flashcard_sets) == 1
+            ):
+                fcard.show_set(card_set, save_flashcards, delete_flashcard_set)
 
 
 # ============================================================

@@ -123,6 +123,14 @@ def delete_student(supabase, student_id):
 
 
 # ============================================================
+# FLASHCARDS
+# ============================================================
+
+def save_flashcards(supabase, student_id, flashcard_sets):
+    supabase.table("students").update({"flashcards": flashcard_sets}).eq("id", student_id).execute()
+
+
+# ============================================================
 # EMAIL REMINDERS
 # ============================================================
 

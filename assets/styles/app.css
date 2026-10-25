@@ -711,6 +711,82 @@ div[data-baseweb="select"] {
 
 
 /* ============================================================
+   FLASHCARDS
+   ============================================================ */
+
+[class*="st-key-fc_card_"] .stButton button {
+    min-height: 260px;
+    padding: 32px !important;
+    background-color: rgba(10, 20, 30, 0.92) !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+    transition: border-color 0.2s ease, transform 0.15s ease;
+}
+
+[class*="st-key-fc_card_"] .stButton button:hover {
+    background-color: rgba(10, 20, 30, 0.92) !important;
+    border-color: #2DD4BF !important;
+}
+
+[class*="st-key-fc_card_"] .stButton button:active {
+    transform: scale(0.99);
+}
+
+[class*="st-key-fc_card_"] .stButton button p {
+    font-family: 'Sora', sans-serif !important;
+    font-size: 1.6rem !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+    white-space: normal;
+}
+
+[class*="st-key-fc_card_"][class*="_back"] .stButton button,
+[class*="st-key-fc_card_"][class*="_back"] .stButton button:hover {
+    background-color: rgba(15, 118, 110, 0.16) !important;
+    border-color: rgba(45, 212, 191, 0.55) !important;
+}
+
+[class*="st-key-fc_card_"][class*="_back"] .stButton button p {
+    font-family: 'Inter', sans-serif !important;
+    font-size: 1.2rem !important;
+    font-weight: 500 !important;
+    line-height: 1.6 !important;
+}
+
+[class*="st-key-fc_still_"] .stButton button {
+    background-color: #334155 !important;
+}
+
+[class*="st-key-fc_still_"] .stButton button:hover {
+    background-color: #475569 !important;
+}
+
+[data-testid="stPopoverButton"] {
+    background-color: #1E293B !important;
+    color: #CBD5E1 !important;
+    border: 1px solid #334155 !important;
+    border-radius: 10px !important;
+}
+
+[data-testid="stPopoverButton"]:hover {
+    border-color: #14B8A6 !important;
+    color: #F8FAFC !important;
+}
+
+[data-testid="stPopoverBody"] {
+    background-color: #111C33 !important;
+    border: 1px solid #334155 !important;
+}
+
+[data-testid="stTooltipContent"] {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+    border: 1px solid #334155 !important;
+}
+
+
+/* ============================================================
    MOBILE
    ============================================================ */
 
@@ -750,7 +826,7 @@ div[data-baseweb="select"] {
         color: #F8FAFC !important;
     }
 
-    [data-testid="stColumn"]:not(:has(.stElementContainer)) {
+    [data-testid="stColumn"]:not(:has(> [data-testid="stVerticalBlock"] > *)) {
         display: none;
     }
 
@@ -822,6 +898,46 @@ div[data-baseweb="select"] {
 
     .welcome-card {
         padding: 1rem;
+    }
+
+    [class*="st-key-fc_card_"] .stButton button {
+        min-height: 200px;
+        padding: 22px !important;
+    }
+
+    [class*="st-key-fc_card_"] .stButton button p {
+        font-size: 1.25rem !important;
+    }
+
+    [class*="st-key-fc_card_"][class*="_back"] .stButton button p {
+        font-size: 1.05rem !important;
+    }
+
+    [class*="st-key-fc_controls_"] [data-testid="stHorizontalBlock"],
+    [class*="st-key-fc_tools_"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: 6px;
+    }
+
+    [class*="st-key-fc_controls_"] [data-testid="stColumn"],
+    [class*="st-key-fc_tools_"] [data-testid="stColumn"] {
+        flex: 1 1 0 !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    [class*="st-key-fc_controls_"] [data-testid="stColumn"]:first-child,
+    [class*="st-key-fc_controls_"] [data-testid="stColumn"]:last-child {
+        flex: 0 0 30px !important;
+    }
+
+    [class*="st-key-fc_controls_"] .stButton button {
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+    }
+
+    [class*="st-key-fc_controls_"] .stButton button p {
+        font-size: 0.9rem !important;
     }
 }
 

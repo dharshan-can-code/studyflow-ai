@@ -13,6 +13,7 @@ create table if not exists public.students (
     profile jsonb not null default '{}'::jsonb,
     study_style jsonb not null default '{}'::jsonb,
     reminders jsonb not null default '{}'::jsonb,
+    flashcards jsonb not null default '[]'::jsonb,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     constraint students_have_identity check (
