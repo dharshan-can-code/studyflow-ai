@@ -103,6 +103,7 @@ DEFAULT_PROFILE = {
     "grade": "9th",
     "school": "",
     "timezone": "America/New_York",
+    "region": "Virginia",
     "ab_calendar": True,
     "onboarded": False
 }
@@ -126,6 +127,65 @@ DEFAULT_STUDY_STYLE = {
 }
 
 SETUP_PREFIXES = ("setup_", "settings_")
+
+REGIONS = [
+    "Alabama",
+    "Alaska",
+    "American Samoa",
+    "Arizona",
+    "Arkansas",
+    "California",
+    "Colorado",
+    "Connecticut",
+    "Delaware",
+    "District of Columbia",
+    "Florida",
+    "Georgia",
+    "Guam",
+    "Hawaii",
+    "Idaho",
+    "Illinois",
+    "Indiana",
+    "Iowa",
+    "Kansas",
+    "Kentucky",
+    "Louisiana",
+    "Maine",
+    "Maryland",
+    "Massachusetts",
+    "Michigan",
+    "Minnesota",
+    "Mississippi",
+    "Missouri",
+    "Montana",
+    "Nebraska",
+    "Nevada",
+    "New Hampshire",
+    "New Jersey",
+    "New Mexico",
+    "New York",
+    "North Carolina",
+    "North Dakota",
+    "Northern Mariana Islands",
+    "Ohio",
+    "Oklahoma",
+    "Oregon",
+    "Pennsylvania",
+    "Puerto Rico",
+    "Rhode Island",
+    "South Carolina",
+    "South Dakota",
+    "Tennessee",
+    "Texas",
+    "U.S. Virgin Islands",
+    "Utah",
+    "Vermont",
+    "Virginia",
+    "Washington",
+    "West Virginia",
+    "Wisconsin",
+    "Wyoming",
+]
 
 
 # ============================================================
@@ -336,6 +396,15 @@ def profile_form(prefix, profile, suggested_name=""):
         key=f"{prefix}_profile_timezone"
     )
 
+    region = st.selectbox(
+        "Region",
+        REGIONS,
+        index=REGIONS.index('Virginia'),
+        key=f"{prefix}_profile_region"
+    )
+
+    st.caption("Region data is used to determine school curriculum and not for any other purpose.")
+
     ab_calendar = st.toggle(
         "My school follows the FCPS A/B day calendar",
         value=bool(profile["ab_calendar"]),
@@ -350,6 +419,7 @@ def profile_form(prefix, profile, suggested_name=""):
         "grade": grade,
         "school": (school or "").strip(),
         "timezone": TIME_ZONES[zone_label],
+        "region": region,
         "ab_calendar": ab_calendar
     }
 

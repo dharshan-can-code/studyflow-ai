@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from ollama import Client, ResponseError
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
+import flashcard_display as fcard
 
 import ab_calendar
 import analytics
@@ -289,6 +290,14 @@ hr {
 
     border: none !important;
     border-radius: 12px !important;
+}
+
+/* ============================================================
+   EXTENDERS
+   ============================================================ */
+
+details:open summary {
+    background-color: #0f172a !important;
 }
 
 
@@ -799,6 +808,8 @@ LOGO_PATH = "assets/studyflow_logo.png"
 
 APP_TIMEZONE = "America/New_York"
 
+REGION = 'Virginia'
+
 MAX_HISTORY_MESSAGES = 50
 
 GUEST_COOKIE = "studyflow_guest_token"
@@ -829,6 +840,10 @@ if "found_assignments" not in st.session_state:
 if "found_batch" not in st.session_state:
     st.session_state.found_batch = 0
 
+if 'card_idxs' not in st.session_state:
+    st.session_state.card_idxs = []
+
+#st.session_state.flashcard_sets = []
 if "assignment_form" not in st.session_state:
     st.session_state.assignment_form = 0
 
@@ -838,6 +853,7 @@ def prepare_saved_data():
     st.session_state.activities = setup.normalize_activities(st.session_state.activities)
     st.session_state.profile = setup.complete_profile(st.session_state.profile)
     st.session_state.study_style = setup.complete_study_style(st.session_state.study_style)
+    st.session_state.flashcard_sets = []
 
 
 if "data_prepared" not in st.session_state:
@@ -1120,6 +1136,18 @@ def date_context(days=14):
         lines.append(f"- {day:%A} {day:%Y-%m-%d}" + (f" ({note})" if note else ""))
 
     return "\n".join(lines)
+
+
+def plan_days():
+    today = student_now().date()
+    latest = today
+    for assignment in st.session_state.assignments:
+        try:
+            due = datetime.strptime(str(assignment.get("due_date")), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        latest = max(latest, due)
+    return min(max((latest - today).days, 14), 60)
 
 
 # ============================================================
@@ -1802,6 +1830,68 @@ def set_session_done(index, key):
     save()
 
 
+def plan_day_label(value):
+    if not uses_ab_calendar():
+        return ""
+    try:
+        day = datetime.strptime(str(value), "%Y-%m-%d").date()
+    except ValueError:
+        return ""
+    return ab_calendar.short_label(day)
+
+
+def show_calendar_export(sessions, zone_name):
+    with st.container(border=True):
+        st.subheader("📤 Export to your calendar")
+
+        include_due = st.toggle(
+            "Include assignment due dates",
+            value=True,
+            key="export_include_due"
+        )
+
+        session_count, due_count = calendar_export.count_events(
+            sessions,
+            st.session_state.assignments,
+            include_due
+        )
+
+        if not session_count and not due_count:
+            st.caption("There's nothing with a date to export yet.")
+            return
+
+        summary = f"{session_count} study session{'s' if session_count != 1 else ''}"
+        if include_due:
+            summary += f" and {due_count} due date{'s' if due_count != 1 else ''}"
+        st.caption(f"{summary}, each study session with a 10-minute reminder.")
+
+        st.download_button(
+            "📅 Download calendar file (.ics)",
+            data=calendar_export.build_ics(
+                sessions,
+                st.session_state.assignments,
+                zone_name,
+                include_due
+            ),
+            file_name="studyflow-study-plan.ics",
+            mime="text/calendar",
+            type="primary",
+            use_container_width=True,
+            key="export_download"
+        )
+
+        with st.expander("How to add it to Google Calendar"):
+            st.markdown(
+                "1. Open **calendar.google.com** on a computer.\n"
+                "2. Click **⚙️ Settings**, then **Import & export**.\n"
+                "3. Choose the file you downloaded and click **Import**.\n\n"
+                "Tip: make a new calendar called *StudyFlow* first and import into it, "
+                "so you can hide or delete the whole plan in one click. "
+                "If you make a new plan later, clear out the old one before importing again. "
+                "The file also works with Apple Calendar and Outlook."
+            )
+
+
 def generate_plan():
     if not st.session_state.assignments:
         return None
@@ -1840,7 +1930,6 @@ def generate_plan():
         "unscheduled": unscheduled,
         "created": student_now().isoformat()
     }
-
 
 # ============================================================
 # ANALYTICS HELPERS
@@ -1939,25 +2028,25 @@ def chat_context():
         if uses_ab_calendar() else ""
     )
     return f"""
-{date_context()}
+    {date_context()}
 
-About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
-{student}
+    About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
+    {student}
 
-The student's current assignments are:
-{json.dumps(st.session_state.assignments, indent=2)}
+    The student's current assignments are:
+    {json.dumps(st.session_state.assignments, indent=2)}
 
-Adding assignments:
-If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
-reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
-in exactly this format:
-<add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
-- Difficulty must be 1-5. Priority must be Low, Medium, or High.
-- Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
-- {ASSIGNMENT_NAME_RULE}
-- {COURSE_RULE}
-- Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
-- Never use these tags for anything else, and never mention them to the student.
+    Adding assignments:
+    If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
+    reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
+    in exactly this format:
+    <add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
+    - Difficulty must be 1-5. Priority must be Low, Medium, or High.
+    - Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
+    - {ASSIGNMENT_NAME_RULE}
+    - {COURSE_RULE}
+    - Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
+    - Never use these tags for anything else, and never mention them to the student.
 """
 
 
@@ -2442,12 +2531,13 @@ st.divider()
 remove_past_assignments()
 fix_general_courses()
 
-tab1, tab2, tab3, analytics_tab, tab4 = st.tabs(
+tab1, tab2, tab3, analytics_tab, tab4, tab5 = st.tabs(
     [
         ":material/assignment_add: Assignments",
         ":material/calendar_clock: Study Plan",
         ":material/chat_bubble: AI Assistant",
         ":material/insights: Analytics",
+        ":material/style: Flashcards",
         ":material/settings: Settings"
     ]
 )
@@ -2605,6 +2695,48 @@ with tab1:
                             ""
                         )
                     )
+                    
+                    if st.button(
+                        "📇 Create Flashcards",
+                        key=f"flashcards_create_{i}"
+                    ):
+                        set_is_unique = True
+                        state = st.session_state.profile.get('region') or 'Virginia'
+                        st.session_state.flashcard_sets.append(
+                            ask_ai(
+                                f"""
+                                You are a professional flashcard maker and I am a student in need of flashcards.
+                                You need to create a set of vocabulary flashcards for {assignment.get('name')} using the {state} curriculum.
+                                Make sure the cards are only for the unit specified (if present) in {state} standard curriculum.
+                                Return only in valid JSON using this format:
+                                {{
+                                    'assignment': 'name'
+                                    'card 1 word': 'definition',
+                                    'card 2 word': 'definition',
+                                    ... and so on
+                                }}
+                                """,
+                                "You are a professional flashcard maker"
+                            ) 
+                        )
+                        for set in st.session_state.flashcard_sets[0:-1]:
+                            if set.get('assignment') == assignment.get('name'):
+                                st.session_state.flashcard_sets[-1].pop()
+                                set_is_unique = False
+                        if set_is_unique:
+                            st.success(
+                                f"Flashcards for {assignment.get('name')} created!"
+                            )
+                            set = list(st.session_state.flashcard_sets[-1].items())
+                            set.insert(1, ('priority', assignment.get('priority')))
+                            set.insert(-1,('known', {}))
+                            st.session_state.flashcard_sets[-1] = dict(set)
+                        else:
+                            st.warning(
+                                f"Flashcards for {assignment.get('name')} already exist!"
+                            )
+                            
+                                
 
                 with col2:
                     st.write(
@@ -2927,7 +3059,7 @@ with tab3:
         """,
         height=0
     )
-
+    
 # ============================================================
 # ANALYTICS TAB
 # ============================================================
@@ -3088,11 +3220,122 @@ with analytics_tab:
                 use_container_width=True
             )
 
+
+# ============================================================
+# FLASHCARDS TAB
+# ============================================================
+
+st.html(f'''<style>
+
+{', '.join('.st-key-flashcard_' + str(set) for set in range(len(st.session_state.flashcard_sets)))} {{
+    align-items: center !important;
+    justify-content: center !important;
+}}
+
+{', '.join('.st-key-flashcard_' + str(set) + ' div button' for set in range(len(st.session_state.flashcard_sets)))} {{
+    border: 0.5px solid #161C2F !important;
+    border-radius: 8px !important;
+    height: 500px !important;
+    display: flex !important;
+}}
+
+{', '.join('.st-key-ik_' + str(set) for set in range(len(st.session_state.flashcard_sets)))}, {', '.join('.st-key-idk_' + str(set) for set in range(len(st.session_state.flashcard_sets)))} {{
+    border: 0.5px solid #161C2F !important;
+    border-radius: 8px !important;
+}}
+
+{', '.join('.st-key-ik_' + str(set) + ' div button div span' for set in range(len(st.session_state.flashcard_sets)))} {{
+    color: lime;
+    font-size: 25pt !important;
+}}
+
+{', '.join('.st-key-idk_' + str(set) + ' div button div span' for set in range(len(st.session_state.flashcard_sets)))} {{
+    color: red;
+    font-size: 25pt !important;
+}}
+
+{', '.join('.st-key-flashcard_' + str(set) + ' div button div span span div' for set in range(len(st.session_state.flashcard_sets)))} {{
+    font-size: 25pt !important;
+    padding: 50px !important;
+}}
+
+</style>''')
+
+def finished_set(set):
+    st.success("✅ You've finished this set of flashcards! You can add more in the 📝 Assignments tab.")
+    if st.button('📇 Practice again'):
+        st.session_state.flashcard_sets[0].update(st.session_state.flashcard_sets[set]['known'].pop())
+
+
+with tab4:
+    st.header("📇 Flashcards")
+    if not st.session_state.flashcard_sets:
+        st.info(
+            "No flashcards yet. Add some in the 📝 Assignments tab."
+        )
+    else:
+        for set in range(0, len(st.session_state.flashcard_sets)):
+            with st.expander(
+                st.session_state.flashcard_sets[set].get('assignment')
+                ):
+                try:
+                    side = st.session_state.card_idxs[set][2] + 0
+                except:
+                    side = 0
+                try:
+                    card_idx = st.session_state.card_idxs[set][1] + 0
+                except:
+                    card_idx = 0
+                
+                if type(list(st.session_state.flashcard_sets[set].keys())[card_idx + 2]) is not dict:
+                    side = fcard.draw(
+                    side, 
+                    list(st.session_state.flashcard_sets[set])[card_idx + 2], 
+                    list(st.session_state.flashcard_sets[set].values())[card_idx + 2],
+                    set
+                    )
+                    idk, ik = st.columns(2)
+                    if idk.button(icon=":material/close:", label='', width='stretch', type='tertiary', key=f'idk_{set}'):
+                        card_idx += 1
+                        side = 0
+                    if ik.button(icon=":material/check:", label='', width='stretch', type='tertiary', key=f'ik_{set}'):    
+                        card = list(st.session_state.flashcard_sets[set].values())[card_idx + 2]
+                        card_key = list(st.session_state.flashcard_sets[set].keys())[card_idx + 2]
+                        st.session_state.flashcard_sets[set].pop(list(st.session_state.flashcard_sets[set])[card_idx + 2])
+                        st.session_state.flashcard_sets[set]['known'].update({
+                            card_key: card
+                        })
+                        side = 0
+                    if len(st.session_state.card_idxs) == set:
+                        prev_side = 0
+                        st.session_state.card_idxs.insert(set, [set, card_idx, side])
+                    elif len(st.session_state.card_idxs) > set:
+                        prev_side = st.session_state.card_idxs[set][2]
+                        st.session_state.card_idxs[set] = [set, card_idx, side]
+                    else:
+                        for i in range(set - len(st.session_state.card_idxs)):
+                            st.session_state.card_idxs.insert(i, [None, None, None])
+                        prev_side = st.session_state.card_idxs[set][2]
+                        st.session_state.card_idxs[set] = [set, card_idx, side]
+                    if side != prev_side:
+                        st.rerun()
+                else:
+                    finished_set(set)
+                
+                with st.expander("📄 View raw JSON data"):    
+                    st.json(st.session_state.flashcard_sets[set])
+                if st.button("🗑️ Delete this set", type="secondary", key=f'delete_set_{set}'):
+                    del st.session_state.flashcard_sets[set]
+                    st.session_state.card_idxs[set] = [None, None, None]
+                    st.rerun()
+
+
+
 # ============================================================
 # SETTINGS TAB
 # ============================================================
 
-with tab4:
+with tab5:
     st.header(":material/settings: Settings")
     st.markdown(
         '<p class="chat-subtitle">Edit your profile, courses, and study preferences.</p>',
