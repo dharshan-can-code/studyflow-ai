@@ -21,7 +21,7 @@ StudyFlow does that part. You tell it what's due (by typing it, or by snapping a
 ## Features
 
 ### Guided setup
-- A five-step setup: basic info, courses, activities, daily routine, and study preferences.
+- A six-step setup: basic info, courses, activities, daily routine, study preferences, and daily email reminders.
 - Search 400+ real FCPS middle and high school courses and mark which ones meet on A days or B days.
 - Follows the FCPS 2026-27 A/B day calendar, including holidays, breaks, and early release days.
 - Add sports, clubs, or a job, and set your homework start time, bedtime, dinner time, and a daily study limit.
@@ -35,6 +35,7 @@ StudyFlow does that part. You tell it what's due (by typing it, or by snapping a
 - A scheduler written in code (not AI) places each study session around your homework start time, weekly activities, one-time events, dinner, bedtime, daily study limit, breaks, and due dates. It also supports lighter Fridays, an optional Sunday catch-up day, and putting your hardest work at the time of day you focus best.
 - The AI then writes a **specific task** for every session, like "Do the Chapter 7 review questions, check answers" instead of "Study biology."
 - If something can't fit before its due date, StudyFlow tells you why and what to change.
+- **Plans change, and so does yours.** Missed a session or forgot to add something? StudyFlow notices and offers to reschedule missed work or fit new assignments in, without moving the sessions you already planned or dragged. **Update my plan** also moves sessions that now clash with a new event and drops time you no longer need, and **Can't make it? Move it** on any session finds it a new time before the due date.
 
 ### Interactive calendar
 - Day, week, month, and list views, like Google Calendar.
@@ -47,8 +48,12 @@ StudyFlow does that part. You tell it what's due (by typing it, or by snapping a
 ### AI Assistant
 - A study chat that knows your classes, schedule, and assignments.
 - Ask it to explain a topic, or attach a photo of a homework problem for a step-by-step walkthrough. It guides you through the steps instead of just giving the answer.
-- Say "add my bio test on Friday" and it adds the assignment to your planner.
-- Say "make flashcards on the causes of World War I" and it makes a flashcard set.
+- It can run your planner from the chat. Tell it what's going on and it makes the change, then shows exactly what it did:
+  - "Add my bio test on Friday" adds an assignment; "push my essay back two days" or "I turned in the essay" edits or removes one.
+  - "I have a dentist appointment Tuesday at 3" or "I'm at a tournament all day Saturday" adds a one-time event; "cancel the dentist appointment" removes it.
+  - "I finished yesterday's session" checks it off; "I missed it" or "I can't study Thursday" reschedules the work.
+  - "Make me a study plan" or "start my plan over" builds or rebuilds the plan, and "limit me to 2 hours a day" changes your study settings.
+  - "Make flashcards on the causes of World War I" makes a flashcard set.
 
 ### Flashcards
 - Make a set from any assignment, from any topic you type, or from a photo or PDF of your notes.
@@ -61,12 +66,18 @@ StudyFlow does that part. You tell it what's due (by typing it, or by snapping a
 - A list of what's coming up in the next 7 days.
 
 ### Daily email reminders
-- Pick a time and get a daily email with that day's study sessions and anything due in the next 3 days.
+- Turn them on during setup or in Settings, pick a time, and get a daily email with that day's study sessions and anything due in the next 3 days.
+- Emails go out at the time you pick. If one can't be sent within 3 hours of it, StudyFlow waits for the next day instead of sending a morning reminder at night.
 - Every email has a one-click unsubscribe link.
 
 ### Accounts and saving
 - Sign in with Google to use StudyFlow on any device, or continue as a guest and your plan is saved for that browser.
 - Everything is saved to a database automatically. You can delete all of your data at any time from the sidebar.
+
+### Light and dark mode
+- Pick **Light**, **Dark**, or **System** (follows your device) from the ⋮ menu in the top right. Streamlit remembers the choice on that browser.
+- Both themes are set in [`.streamlit/config.toml`](.streamlit/config.toml), and the calendar, charts, animated background, and logo all switch with them.
+- Type is set in Bricolage Grotesque for headings, Figtree for text, and JetBrains Mono for small labels.
 
 ### Works on phones
 - The layout adapts to small screens: the calendar opens in day view, and tabs and buttons resize to fit.
@@ -98,7 +109,8 @@ flowchart LR
     App --> Planner[Scheduler<br/>studyflow/planning]
     App --> AI[Ollama Cloud<br/>gpt-oss and Gemma]
     App --> DB[(Supabase<br/>Postgres)]
-    Action[GitHub Action<br/>every 15 minutes] --> Reminders[send_reminders.py]
+    Cron[Supabase pg_cron<br/>every 10 minutes] --> Action[GitHub Action]
+    Action --> Reminders[send_reminders.py]
     Reminders --> DB
     Reminders --> Gmail[Gmail] --> Inbox([Student's inbox])
 ```
@@ -107,7 +119,7 @@ flowchart LR
 2. **Assignments** are read from text, photos, or PDFs by an AI model, then checked and cleaned up in code (valid dates, difficulty 1 to 5, course matched to the student's classes).
 3. **The study plan** is built in two steps. First, `studyflow/planning/scheduler.py` places every session using rules, which takes seconds and always respects your schedule. Then an AI model writes a short, specific task for each session. We moved the scheduling itself out of the AI after it took over a minute and sometimes placed sessions at bad times.
 4. **Everything is saved** to one row per student in Supabase. Guests are identified by a random token stored in a browser cookie, and only a hash of that token is stored in the database.
-5. **Reminder emails** are sent by a GitHub Action that runs `send_reminders.py` every 15 minutes and emails anyone whose chosen time has passed that day.
+5. **Reminder emails** are sent by a GitHub Action that runs `send_reminders.py`. Supabase's built-in scheduler starts it every 10 minutes, and it emails anyone whose chosen time was within the last 3 hours and who hasn't gotten today's email yet.
 
 ### AI models
 
@@ -244,9 +256,13 @@ Reminders are sent from a Gmail account by a GitHub Action ([`.github/workflows/
 
 1. Use a Gmail account with 2-step verification turned on, and create an **app password** (search "App passwords" in your Google Account settings).
 2. In the GitHub repo, go to **Settings > Secrets and variables > Actions** and add these five repository secrets: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `APP_URL`.
-3. The workflow runs every 15 minutes (GitHub sometimes starts scheduled runs a few minutes late). To test it right away, open the **Actions** tab, pick **Send study reminders**, and click **Run workflow**.
+3. Make the reminders run on time. The workflow has a 15-minute schedule, but GitHub often starts scheduled runs hours late, so something else needs to start it:
+   - Create a GitHub **fine-grained token** for this repository with **Actions: Read and write** permission.
+   - Open [`supabase/reminder_trigger.sql`](supabase/reminder_trigger.sql), paste the token where it says `PASTE_GITHUB_TOKEN_HERE` (and change the repository name if yours is different), and run it in the Supabase **SQL Editor**. Supabase then starts the workflow every 10 minutes. Don't commit the file with your token in it.
+   - Or use any free cron service (like cron-job.org) to send a `POST` every 10 minutes to `https://api.github.com/repos/<owner>/<repo>/actions/workflows/reminders.yml/dispatches` with the body `{"ref": "main"}` and the headers `Authorization: Bearer <token>` and `Accept: application/vnd.github+json`.
+4. GitHub only runs workflows from the default branch, so merge changes to `main` before expecting them to run. To test right away, open the **Actions** tab, pick **Send study reminders**, and click **Run workflow**.
 
-Students turn reminders on in **Settings > Reminders**, where they can pick a time and send themselves a test email. The test email uses the Gmail settings in the app's own secrets.
+Students turn reminders on during setup or in **Settings > Reminders**, where they can pick a time and send themselves a test email. The test email uses the Gmail settings in the app's own secrets.
 
 ---
 

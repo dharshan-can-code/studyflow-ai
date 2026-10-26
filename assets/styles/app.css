@@ -1,60 +1,65 @@
 /* ============================================================
-   FONTS
+   THEME TOKENS
+   Streamlit's own theme (.streamlit/config.toml) colors the widgets and text.
+   These tokens color StudyFlow's custom pieces. glass.js sets data-sf-theme on <html>
+   to "light" or "dark" to match the theme picked in the app's menu.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Sixtyfour&family=Sora:wght@400;500;600;700&display=swap');
+:root,
+html[data-sf-theme="dark"] {
+    --sf-font-body: 'Figtree', sans-serif;
+    --sf-font-heading: 'Bricolage Grotesque', 'Figtree', sans-serif;
+    --sf-font-mono: 'JetBrains Mono', monospace;
 
-
-/* ============================================================
-   MAIN APP
-   ============================================================ */
-
-.stApp {
-    background-color: #0F172A;
-    color: #F8FAFC;
+    --sf-page: #050B10;
+    --sf-text: #F1F5F9;
+    --sf-text-soft: #CBD5E1;
+    --sf-muted: #94A3B8;
+    --sf-caption: #AEB9C8;
+    --sf-faint: #64748B;
+    --sf-surface: #1E293B;
+    --sf-surface-strong: #334155;
+    --sf-panel: rgba(10, 20, 30, 0.84);
+    --sf-panel-solid: #0E1A26;
+    --sf-sidebar: rgba(8, 16, 24, 0.9);
+    --sf-header: rgba(5, 11, 16, 0.82);
+    --sf-border: rgba(148, 163, 184, 0.14);
+    --sf-accent: #2DD4BF;
+    --sf-accent-soft: #5EEAD4;
+    --sf-accent-wash: rgba(20, 184, 166, 0.16);
+    --sf-button: #0F766E;
+    --sf-button-hover: #0D9488;
+    --sf-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    --sf-text-shadow: 0 1px 12px rgba(0, 0, 0, 0.55);
+    --sf-flashcard: rgba(10, 20, 30, 0.92);
+    --sf-flashcard-back: rgba(15, 118, 110, 0.16);
+    --sf-welcome-end: rgba(10, 20, 30, 0.85);
 }
 
-
-[data-testid="stHeader"] {
-    background-color: #0F172A;
-}
-
-[data-testid="stHeader"] > div {
-    background-color: #0F172A;
-}
-
-
-.main .block-container {
-    color: #F8FAFC;
-}
-
-
-/* ============================================================
-   TEXT
-   ============================================================ */
-
-p {
-    color: #F8FAFC !important;
-    font-family: 'Inter', sans-serif !important;
-}
-
-label {
-    color: #CBD5E1 !important;
-    font-family: 'Inter', sans-serif !important;
-}
-
-small {
-    color: #94A3B8 !important;
-}
-
-
-/* ============================================================
-   HEADINGS
-   ============================================================ */
-
-h1, h2, h3 {
-    font-family: 'Sora', sans-serif !important;
-    color: #F8FAFC !important;
+html[data-sf-theme="light"] {
+    --sf-page: #F4F8F7;
+    --sf-text: #0F1E2A;
+    --sf-text-soft: #334155;
+    --sf-muted: #5B6B7C;
+    --sf-caption: #5B6B7C;
+    --sf-faint: #8796A5;
+    --sf-surface: #E4EDEB;
+    --sf-surface-strong: #CFDDD9;
+    --sf-panel: rgba(255, 255, 255, 0.84);
+    --sf-panel-solid: #FFFFFF;
+    --sf-sidebar: rgba(234, 242, 240, 0.92);
+    --sf-header: rgba(244, 248, 247, 0.85);
+    --sf-border: rgba(15, 30, 42, 0.1);
+    --sf-accent: #0D9488;
+    --sf-accent-soft: #0F766E;
+    --sf-accent-wash: rgba(13, 148, 136, 0.12);
+    --sf-button: #0F766E;
+    --sf-button-hover: #115E59;
+    --sf-shadow: 0 10px 30px rgba(15, 30, 42, 0.08);
+    --sf-text-shadow: none;
+    --sf-flashcard: #FFFFFF;
+    --sf-flashcard-back: rgba(13, 148, 136, 0.09);
+    --sf-welcome-end: rgba(255, 255, 255, 0.92);
 }
 
 
@@ -63,103 +68,36 @@ h1, h2, h3 {
    ============================================================ */
 
 .studyflow-title {
-    font-family: 'Sixtyfour', monospace !important;
-    font-size: 42px;
-    font-weight: 400 !important;
-    letter-spacing: -1px;
-    line-height: 1.2;
-    margin-bottom: 8px;
+    font-family: var(--sf-font-heading) !important;
+    font-size: 46px;
+    font-weight: 800 !important;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    margin-bottom: 6px;
 }
 
 .studyflow-title .brand-name {
-    color: #F8FAFC !important;
-    font-family: 'Sixtyfour', monospace !important;
+    color: var(--sf-text) !important;
 }
 
 .studyflow-title .brand-ai {
-    color: #2DD4BF !important;
-    font-family: 'Sixtyfour', monospace !important;
+    font-family: var(--sf-font-mono) !important;
+    font-size: 0.62em;
+    font-weight: 500;
+    letter-spacing: 0;
+    vertical-align: 0.38em;
+    margin-left: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    color: var(--sf-accent) !important;
+    background: var(--sf-accent-wash);
+    border: 1px solid var(--sf-accent);
 }
-
-
-/* ============================================================
-   SUBTITLE
-   ============================================================ */
 
 .studyflow-subtitle {
-    font-family: 'Inter', sans-serif !important;
-    color: #94A3B8 !important;
+    color: var(--sf-muted) !important;
     font-size: 16px;
     margin-bottom: 20px;
-}
-
-
-/* ============================================================
-   TEXT INPUTS
-   ============================================================ */
-
-.stTextInput input {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-
-    border: none !important;
-    border-radius: 10px !important;
-
-    font-family: 'Inter', sans-serif !important;
-}
-
-.stTextInput input::placeholder {
-    color: #64748B !important;
-    opacity: 1 !important;
-}
-
-.stTextInput input:focus {
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-}
-
-
-/* ============================================================
-   TEXT AREAS
-   ============================================================ */
-
-.stTextArea textarea {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-
-    border: none !important;
-    border-radius: 10px !important;
-
-    font-family: 'Inter', sans-serif !important;
-}
-
-.stTextArea textarea::placeholder {
-    color: #64748B !important;
-    opacity: 1 !important;
-}
-
-.stTextArea textarea:focus {
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-}
-
-
-/* ============================================================
-   SELECT BOX
-   ============================================================ */
-
-.stSelectbox [data-baseweb="select"] > div {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-
-    border: none !important;
-    border-radius: 10px !important;
-}
-
-.stSelectbox [data-baseweb="select"] span {
-    color: #F8FAFC !important;
 }
 
 
@@ -168,20 +106,15 @@ h1, h2, h3 {
    ============================================================ */
 
 .stButton button {
-    background-color: #0F766E !important;
+    background-color: var(--sf-button) !important;
     color: #FFFFFF !important;
-
     border: none !important;
-    border-radius: 10px !important;
-
-    font-family: 'Inter', sans-serif !important;
     font-weight: 600 !important;
-
     transition: background-color 0.2s ease;
 }
 
 .stButton button:hover {
-    background-color: #0D9488 !important;
+    background-color: var(--sf-button-hover) !important;
     color: #FFFFFF !important;
 }
 
@@ -190,48 +123,50 @@ h1, h2, h3 {
     box-shadow: none !important;
 }
 
-[data-testid="stCheckbox"] label:has(input[role="switch"]:not(:checked)) > span + div {
-    background-color: #334155 !important;
-}
-
 .stButton button:disabled,
 .stButton button:disabled:hover {
-    background-color: #1E293B !important;
-    color: #64748B !important;
+    background-color: var(--sf-surface) !important;
+    color: var(--sf-faint) !important;
     cursor: not-allowed;
+}
+
+.stButton button[kind="tertiary"] {
+    background: transparent !important;
+    color: var(--sf-muted) !important;
+    font-weight: 500 !important;
+}
+
+.stButton button[kind="tertiary"]:hover {
+    background: transparent !important;
+    color: var(--sf-text) !important;
+}
+
+[data-testid="stCheckbox"] label:has(input[role="switch"]:not(:checked)) > span + div {
+    background-color: var(--sf-surface-strong) !important;
 }
 
 
 /* ============================================================
-   SIDEBAR
+   SIDEBAR AND TABS
    ============================================================ */
-
-[data-testid="stSidebar"] {
-    background-color: #111C33 !important;
-}
-
-[data-testid="stSidebar"] * {
-    font-family: 'Inter', sans-serif;
-}
-
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 {
-    color: #F8FAFC !important;
-}
-
-[data-testid="stSidebar"] label {
-    color: #CBD5E1 !important;
-}
 
 [data-testid="stSidebar"] [data-testid="stFullScreenFrame"]:has([data-testid="stImage"]) > div {
     margin: 0 auto;
 }
 
+.st-key-logo_dark,
+.st-key-logo_light {
+    align-items: center;
+}
 
-/* ============================================================
-   TABS
-   ============================================================ */
+.st-key-logo_light,
+html[data-sf-theme="light"] .st-key-logo_dark {
+    display: none !important;
+}
+
+html[data-sf-theme="light"] .st-key-logo_light {
+    display: flex !important;
+}
 
 .stTabs [data-baseweb="tab-list"] {
     background-color: transparent !important;
@@ -239,43 +174,17 @@ h1, h2, h3 {
 }
 
 .stTabs [data-baseweb="tab"] {
-    color: #94A3B8 !important;
-    font-family: 'Inter', sans-serif !important;
+    color: var(--sf-muted) !important;
     font-weight: 600;
 }
 
 .stTabs [aria-selected="true"] {
-    color: #2DD4BF !important;
+    color: var(--sf-accent) !important;
 }
-
-
-/* ============================================================
-   DIVIDERS
-   ============================================================ */
 
 hr {
     border: none !important;
-    border-top: 1px solid #1E293B !important;
-}
-
-
-/* ============================================================
-   CONTAINERS / CARDS
-   ============================================================ */
-
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background-color: #1E293B !important;
-
-    border: none !important;
-    border-radius: 12px !important;
-}
-
-/* ============================================================
-   EXTENDERS
-   ============================================================ */
-
-details:open summary {
-    background-color: #0f172a !important;
+    border-top: 1px solid var(--sf-border) !important;
 }
 
 
@@ -284,12 +193,12 @@ details:open summary {
    ============================================================ */
 
 [data-testid="stChatMessage"] {
-    background: rgba(20, 29, 50, .84) !important;
-    border: 1px solid rgba(148, 163, 184, .12) !important;
+    background: var(--sf-panel) !important;
+    border: 1px solid var(--sf-border) !important;
     border-radius: 16px !important;
     padding: 1rem 1.1rem !important;
     margin: .75rem 0 !important;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .10);
+    box-shadow: var(--sf-shadow);
 }
 
 [data-testid="stChatMessage"] p,
@@ -297,22 +206,13 @@ details:open summary {
     line-height: 1.65;
 }
 
-[data-testid="stChatMessage"] li,
-[data-testid="stChatMessage"] td,
-[data-testid="stChatMessage"] th,
-[data-testid="stChatMessage"] blockquote,
-[data-testid="stChatMessage"] h4,
-[data-testid="stChatMessage"] h5 {
-    color: #F8FAFC !important;
-}
-
 [data-testid="stChatMessage"] li::marker {
-    color: #5EEAD4;
+    color: var(--sf-accent-soft);
 }
 
 [data-testid="stChatInput"] {
-    background: #18233d !important;
-    border: 1px solid rgba(94, 234, 212, .3) !important;
+    background: var(--sf-surface) !important;
+    border: 1px solid var(--sf-accent) !important;
     border-radius: 15px !important;
 }
 
@@ -322,22 +222,17 @@ details:open summary {
 }
 
 [data-testid="stChatInput"] textarea {
-    color: #F8FAFC !important;
     background: transparent !important;
     border: none !important;
 }
 
-[data-testid="stChatInput"] textarea::placeholder {
-    color: #8491a8 !important;
-}
-
 [data-testid="stChatInput"] button {
-    color: #5EEAD4 !important;
+    color: var(--sf-accent) !important;
 }
 
 .chat-kicker {
-    color: #5EEAD4;
-    font-family: 'DM Mono', monospace;
+    color: var(--sf-accent-soft);
+    font-family: var(--sf-font-mono);
     font-size: .72rem;
     letter-spacing: .13em;
     text-transform: uppercase;
@@ -345,66 +240,31 @@ details:open summary {
 }
 
 .chat-subtitle {
-    color: #a9b5c9 !important;
+    color: var(--sf-muted) !important;
     font-size: 1rem;
     line-height: 1.65;
     max-width: 39rem;
     margin: .25rem 0 1.25rem;
 }
 
+.chat-thinking {
+    color: var(--sf-muted);
+    font-style: italic;
+}
+
 .welcome-card {
-    background: linear-gradient(115deg, rgba(20, 184, 166, .16), rgba(10, 20, 30, .85));
-    border: 1px solid rgba(153, 246, 228, .22);
+    background: linear-gradient(115deg, var(--sf-accent-wash), var(--sf-welcome-end));
+    border: 1px solid var(--sf-border);
     border-radius: 18px;
     padding: 1.15rem 1.25rem;
     margin: .5rem 0 1.5rem;
-    color: #E6FFFA;
-    font-family: 'Inter', sans-serif;
+    color: var(--sf-text);
     line-height: 1.6;
 }
 
 .welcome-card strong {
-    color: #fff;
-}
-
-
-/* ============================================================
-   GENERAL STREAMLIT COMPONENT BORDERS
-   ============================================================ */
-
-div[data-baseweb="input"] {
-    border: none !important;
-}
-
-div[data-baseweb="textarea"] {
-    border: none !important;
-}
-
-div[data-baseweb="select"] {
-    border: none !important;
-}
-
-
-/* ============================================================
-   FILE UPLOADER
-   ============================================================ */
-
-[data-testid="stFileUploaderDropzone"] {
-    background-color: #1E293B !important;
-    border: 1px dashed #334155 !important;
-    border-radius: 10px !important;
-}
-
-[data-testid="stFileUploaderDropzone"] span,
-[data-testid="stFileUploaderDropzone"] small,
-[data-testid="stFileUploaderDropzone"] p {
-    color: #CBD5E1 !important;
-}
-
-[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
-    background-color: #334155 !important;
-    color: #F8FAFC !important;
-    border: none !important;
+    font-family: var(--sf-font-heading);
+    color: var(--sf-text);
 }
 
 
@@ -413,10 +273,11 @@ div[data-baseweb="select"] {
    ============================================================ */
 
 .greeting {
-    font-family: 'Sora', sans-serif;
-    font-size: 26px;
-    font-weight: 600;
-    color: #F8FAFC;
+    font-family: var(--sf-font-heading);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--sf-text);
     margin-top: 4px;
 }
 
@@ -426,19 +287,18 @@ div[data-baseweb="select"] {
     font-size: 26px;
     line-height: 1;
     vertical-align: -4px;
-    color: #5EEAD4;
+    color: var(--sf-accent-soft);
     font-feature-settings: 'liga';
 }
 
 .greeting-date {
-    font-family: 'Inter', sans-serif;
-    color: #94A3B8;
+    color: var(--sf-muted);
     font-size: 15px;
     margin-bottom: 6px;
 }
 
 .wizard-title {
-    font-size: 30px;
+    font-size: 34px;
     text-align: center;
     margin: 24px 0 16px;
 }
@@ -449,18 +309,19 @@ div[data-baseweb="select"] {
    ============================================================ */
 
 .assignment-type {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.85rem;
-    font-weight: 700;
-    letter-spacing: .08em;
-    color: #94A3B8;
+    font-family: var(--sf-font-mono);
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: .1em;
+    color: var(--sf-accent-soft);
 }
 
 .assignment-name {
-    font-family: 'Sora', sans-serif;
+    font-family: var(--sf-font-heading);
     font-size: 1.5rem;
-    font-weight: 600;
-    color: #F8FAFC;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--sf-text);
     margin-bottom: 0.5rem;
 }
 
@@ -488,8 +349,10 @@ div[data-baseweb="select"] {
     gap: 14px;
     min-width: 0;
     padding: 18px;
-    background-color: #1E293B;
+    background-color: var(--sf-panel);
+    border: 1px solid var(--sf-border);
     border-radius: 12px;
+    box-shadow: var(--sf-shadow);
 }
 
 .stat-icon {
@@ -506,16 +369,15 @@ div[data-baseweb="select"] {
 }
 
 .stat-label {
-    font-family: 'Inter', sans-serif;
     font-size: 13px;
-    color: #94A3B8;
+    color: var(--sf-muted);
 }
 
 .stat-value {
-    font-family: 'Sora', sans-serif;
-    font-size: 22px;
-    font-weight: 600;
-    color: #F8FAFC;
+    font-family: var(--sf-font-heading);
+    font-size: 23px;
+    font-weight: 700;
+    color: var(--sf-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -526,16 +388,16 @@ div[data-baseweb="select"] {
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
-    font-family: 'Sora', sans-serif;
+    font-family: var(--sf-font-heading);
     font-size: 17px;
-    font-weight: 600;
-    color: #F8FAFC;
+    font-weight: 700;
+    color: var(--sf-text);
 }
 
 .card-icon {
     font-family: 'Material Symbols Rounded';
     font-size: 20px;
-    color: #5EEAD4;
+    color: var(--sf-accent-soft);
 }
 
 .load-row {
@@ -547,20 +409,20 @@ div[data-baseweb="select"] {
     justify-content: space-between;
     gap: 12px;
     margin-bottom: 6px;
-    font-family: 'Inter', sans-serif;
     font-size: 14px;
-    color: #CBD5E1;
+    color: var(--sf-text-soft);
 }
 
 .load-count {
-    color: #94A3B8;
-    font-variant-numeric: tabular-nums;
+    color: var(--sf-muted);
+    font-family: var(--sf-font-mono);
+    font-size: 13px;
 }
 
 .load-track {
     height: 6px;
     overflow: hidden;
-    background-color: #334155;
+    background-color: var(--sf-surface-strong);
     border-radius: 999px;
 }
 
@@ -571,123 +433,29 @@ div[data-baseweb="select"] {
 }
 
 .load-empty {
-    color: #94A3B8 !important;
+    color: var(--sf-muted) !important;
 }
+
+
+/* ============================================================
+   SMALL PIECES
+   ============================================================ */
 
 [data-testid="stSidebar"] [data-testid="stIconMaterial"] {
     font-family: 'Material Symbols Rounded' !important;
 }
 
-[data-testid="stToast"] {
-    background-color: #1E293B !important;
-    border: 1px solid #334155 !important;
-}
-
 [data-testid="stToast"] [data-testid="stIconMaterial"] {
-    color: #5EEAD4 !important;
-}
-
-.stButton button[kind="tertiary"] {
-    background: transparent !important;
-    color: #94A3B8 !important;
-    font-weight: 500 !important;
-}
-
-.stButton button[kind="tertiary"]:hover {
-    background: transparent !important;
-    color: #F8FAFC !important;
-}
-
-[data-testid="stProgressBarTrack"],
-[data-testid="stProgress"] [role="progressbar"] > div {
-    background-color: #1E293B !important;
-}
-
-[data-testid="stProgressBarTrack"] > div,
-[data-testid="stProgress"] [role="progressbar"] > div > div {
-    background-color: #14B8A6 !important;
-}
-
-[data-testid="stSelectbox"] [role="group"],
-[data-testid="stNumberInputContainer"],
-[data-testid="stNumberInput"] input,
-[data-testid="stTimeInputTimeDisplay"],
-[data-testid="stTimeInput"] [data-baseweb="select"] > div,
-[data-testid="stTimeInput"] [data-baseweb="input"],
-[data-testid="stDateInput"] [data-baseweb="input"] {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-    border-radius: 10px !important;
-}
-
-[data-testid="stSelectbox"] [role="group"] *,
-[data-testid="stNumberInputContainer"] input,
-[data-testid="stTimeInput"] input,
-[data-testid="stTimeInputTimeDisplay"] *,
-[data-testid="stDateInput"] input {
-    color: #F8FAFC !important;
-    background-color: transparent !important;
-}
-
-[data-testid="stDialog"] > div {
-    background-color: #111C33 !important;
-    border: 1px solid #334155 !important;
-}
-
-[data-testid="stDialog"] button[aria-label="Close"] {
-    color: #F8FAFC !important;
-}
-
-.chat-thinking {
-    color: #94A3B8;
-    font-style: italic;
-}
-
-[data-testid="stCaptionContainer"] a,
-[data-testid="stMarkdownContainer"] a {
-    color: #5EEAD4 !important;
-}
-
-[data-testid="stCaptionContainer"] a:hover,
-[data-testid="stMarkdownContainer"] a:hover {
-    color: #99F6E4 !important;
-}
-
-[data-testid="stSelectbox"] input::placeholder {
-    color: #94A3B8 !important;
-    opacity: 1 !important;
-}
-
-[data-testid="stNumberInputContainer"] button {
-    background-color: #334155 !important;
-    color: #F8FAFC !important;
-}
-
-[role="listbox"],
-[data-baseweb="popover"] ul,
-[data-baseweb="popover"] [role="dialog"] {
-    background-color: #1E293B !important;
-}
-
-[role="option"],
-[role="option"] * {
-    color: #F8FAFC !important;
-}
-
-[role="option"]:hover,
-[role="option"][data-focused="true"],
-[role="option"][aria-selected="true"] {
-    background-color: #334155 !important;
+    color: var(--sf-accent) !important;
 }
 
 [data-testid="stButtonGroup"] button {
-    background-color: #1E293B !important;
-    border: 1px solid #334155 !important;
-    color: #CBD5E1 !important;
+    background-color: var(--sf-surface) !important;
+    border: 1px solid var(--sf-surface-strong) !important;
 }
 
 [data-testid="stButtonGroup"] button p {
-    color: #CBD5E1 !important;
+    color: var(--sf-text-soft) !important;
 }
 
 [data-testid="stButtonGroup"] button:hover {
@@ -698,7 +466,7 @@ div[data-baseweb="select"] {
 [data-testid="stButtonGroup"] button[aria-checked="true"],
 [data-testid="stButtonGroup"] button[data-selected="true"],
 [data-testid="stButtonGroup"] button[kind$="Active"] {
-    background-color: rgba(20, 184, 166, .22) !important;
+    background-color: var(--sf-accent-wash) !important;
     border-color: #14B8A6 !important;
 }
 
@@ -706,7 +474,18 @@ div[data-baseweb="select"] {
 [data-testid="stButtonGroup"] button[aria-checked="true"] p,
 [data-testid="stButtonGroup"] button[data-selected="true"] p,
 [data-testid="stButtonGroup"] button[kind$="Active"] p {
-    color: #F8FAFC !important;
+    color: var(--sf-text) !important;
+}
+
+[data-testid="stPopoverButton"] {
+    background-color: var(--sf-surface) !important;
+    color: var(--sf-text-soft) !important;
+    border: 1px solid var(--sf-surface-strong) !important;
+}
+
+[data-testid="stPopoverButton"]:hover {
+    border-color: #14B8A6 !important;
+    color: var(--sf-text) !important;
 }
 
 
@@ -717,16 +496,18 @@ div[data-baseweb="select"] {
 [class*="st-key-fc_card_"] .stButton button {
     min-height: 260px;
     padding: 32px !important;
-    background-color: rgba(10, 20, 30, 0.92) !important;
-    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    background-color: var(--sf-flashcard) !important;
+    color: var(--sf-text) !important;
+    border: 1px solid var(--sf-border) !important;
     border-radius: 16px !important;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--sf-shadow);
     transition: border-color 0.2s ease, transform 0.15s ease;
 }
 
 [class*="st-key-fc_card_"] .stButton button:hover {
-    background-color: rgba(10, 20, 30, 0.92) !important;
-    border-color: #2DD4BF !important;
+    background-color: var(--sf-flashcard) !important;
+    color: var(--sf-text) !important;
+    border-color: var(--sf-accent) !important;
 }
 
 [class*="st-key-fc_card_"] .stButton button:active {
@@ -734,64 +515,41 @@ div[data-baseweb="select"] {
 }
 
 [class*="st-key-fc_card_"] .stButton button p {
-    font-family: 'Sora', sans-serif !important;
-    font-size: 1.6rem !important;
-    font-weight: 600 !important;
-    line-height: 1.4 !important;
+    font-family: var(--sf-font-heading) !important;
+    font-size: 1.7rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.015em;
+    line-height: 1.35 !important;
     white-space: normal;
 }
 
 [class*="st-key-fc_card_"][class*="_back"] .stButton button,
 [class*="st-key-fc_card_"][class*="_back"] .stButton button:hover {
-    background-color: rgba(15, 118, 110, 0.16) !important;
-    border-color: rgba(45, 212, 191, 0.55) !important;
+    background-color: var(--sf-flashcard-back) !important;
+    border-color: var(--sf-accent) !important;
 }
 
 [class*="st-key-fc_card_"][class*="_back"] .stButton button p {
-    font-family: 'Inter', sans-serif !important;
+    font-family: var(--sf-font-body) !important;
     font-size: 1.2rem !important;
     font-weight: 500 !important;
+    letter-spacing: 0;
     line-height: 1.6 !important;
 }
 
-[class*="st-key-fc_still_"] .stButton button {
-    background-color: #334155 !important;
-}
-
+[class*="st-key-fc_still_"] .stButton button,
 [class*="st-key-fc_still_"] .stButton button:hover {
-    background-color: #475569 !important;
-}
-
-[data-testid="stPopoverButton"] {
-    background-color: #1E293B !important;
-    color: #CBD5E1 !important;
-    border: 1px solid #334155 !important;
-    border-radius: 10px !important;
-}
-
-[data-testid="stPopoverButton"]:hover {
-    border-color: #14B8A6 !important;
-    color: #F8FAFC !important;
-}
-
-[data-testid="stPopoverBody"] {
-    background-color: #111C33 !important;
-    border: 1px solid #334155 !important;
+    background-color: var(--sf-surface-strong) !important;
+    color: var(--sf-text) !important;
 }
 
 iframe[title*="calendar"] {
     height: 722px !important;
-    background-color: #0A141E;
-    border: 1px solid rgba(148, 163, 184, 0.14) !important;
+    background-color: var(--sf-panel-solid);
+    border: 1px solid var(--sf-border) !important;
     border-radius: 14px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--sf-shadow);
     color-scheme: normal;
-}
-
-[data-testid="stTooltipContent"] {
-    background-color: #1E293B !important;
-    color: #F8FAFC !important;
-    border: 1px solid #334155 !important;
 }
 
 
@@ -801,16 +559,16 @@ iframe[title*="calendar"] {
 
 @media (max-width: 640px) {
     .studyflow-title {
-        font-size: 32px;
+        font-size: 34px;
     }
 
     .wizard-title {
-        font-size: 26px;
+        font-size: 28px;
         margin: 0 0 12px;
     }
 
     .greeting {
-        font-size: 22px;
+        font-size: 23px;
     }
 
     .assignment-name {
@@ -826,13 +584,13 @@ iframe[title*="calendar"] {
     }
 
     [data-testid="stTabsScrollRight"] {
-        background: linear-gradient(to right, rgba(5, 11, 16, 0), #050B10 45%) !important;
-        color: #F8FAFC !important;
+        background: linear-gradient(to right, transparent, var(--sf-page) 45%) !important;
+        color: var(--sf-text) !important;
     }
 
     [data-testid="stTabsScrollLeft"] {
-        background: linear-gradient(to left, rgba(5, 11, 16, 0), #050B10 45%) !important;
-        color: #F8FAFC !important;
+        background: linear-gradient(to left, transparent, var(--sf-page) 45%) !important;
+        color: var(--sf-text) !important;
     }
 
     [data-testid="stColumn"]:not(:has(> [data-testid="stVerticalBlock"] > *)) {
@@ -937,7 +695,7 @@ iframe[title*="calendar"] {
     }
 
     [class*="st-key-fc_card_"] .stButton button p {
-        font-size: 1.25rem !important;
+        font-size: 1.3rem !important;
     }
 
     [class*="st-key-fc_card_"][class*="_back"] .stButton button p {
@@ -982,16 +740,12 @@ iframe[title*="calendar"] {
 }
 
 ::-webkit-scrollbar-track {
-    background: #0F172A;
+    background: var(--sf-page);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #334155;
+    background: var(--sf-surface-strong);
     border-radius: 10px;
-}
-
-[data-testid="stSidebarCollapseButton"] button {
-    color: #F8FAFC !important;
 }
 
 [data-testid="stSidebarCollapseButton"] button span {

@@ -10,6 +10,7 @@ from studyflow.planning import ab_calendar
 DEFAULT_ZONE = "America/New_York"
 DEFAULT_TIME = "07:00"
 DUE_SOON_DAYS = 3
+LATE_LIMIT_MINUTES = 3 * 60
 GMAIL_HOST = "smtp.gmail.com"
 GMAIL_PORT = 465
 
@@ -77,7 +78,7 @@ def todays_summary(student, today):
 
     sessions = [
         session for session in plan.get("study_sessions", [])
-        if isinstance(session, dict) and session.get("date") == today.isoformat()
+        if isinstance(session, dict) and session.get("date") == today.isoformat() and not session.get("done")
     ]
     sessions.sort(key=lambda session: str(session.get("start_time")))
 

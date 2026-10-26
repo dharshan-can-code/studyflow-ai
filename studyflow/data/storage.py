@@ -106,6 +106,7 @@ def _messages_for_saving(messages):
         saved.append({
             "role": message["role"],
             "content": message.get("content", ""),
+            "notes": message.get("notes") or [],
             "had_image": bool(message.get("images")) or message.get("had_image", False)
         })
     return saved

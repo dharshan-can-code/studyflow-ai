@@ -25,8 +25,11 @@ def due_now(reminders, now):
     if not reminders.get("enabled") or not reminders.get("email") or not reminders.get("token"):
         return False
     chosen = reminder_email.minutes_of_day(reminder_email.reminder_time(reminders))
-    current = now.hour * 60 + now.minute
-    return current >= chosen and reminders.get("last_sent") != now.date().isoformat()
+    late_by = now.hour * 60 + now.minute - chosen
+    # A run that comes too long after the chosen time (or reminders turned on later in the day)
+    # waits for tomorrow instead of sending a morning reminder at night.
+    on_time = 0 <= late_by < reminder_email.LATE_LIMIT_MINUTES
+    return on_time and reminders.get("last_sent") != now.date().isoformat()
 
 
 def main():

@@ -1,2 +1,39 @@
+# Defining both [theme.light] and [theme.dark] adds Light, Dark, and System choices to the app's
+# Settings menu (the ⋮ menu, top right). Students start on System, which follows their device.
+
 [theme]
 primaryColor = "#14B8A6"
+font = "Figtree:https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap"
+headingFont = "'Bricolage Grotesque':https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+headingFontWeights = [800, 700, 700, 600, 600, 600]
+baseRadius = "0.625rem"
+buttonRadius = "0.625rem"
+showWidgetBorder = false
+chartCategoricalColors = ["#14B8A6", "#6366F1", "#F59E0B", "#EC4899", "#22C55E", "#0EA5E9", "#F97316", "#A855F7"]
+
+[theme.light]
+primaryColor = "#0D9488"
+backgroundColor = "#F4F8F7"
+secondaryBackgroundColor = "#E4EDEB"
+textColor = "#0F1E2A"
+borderColor = "#D2DFDC"
+linkColor = "#0F766E"
+codeBackgroundColor = "#E4EDEB"
+
+[theme.light.sidebar]
+backgroundColor = "#EAF2F0"
+secondaryBackgroundColor = "#DCE8E5"
+
+[theme.dark]
+primaryColor = "#14B8A6"
+backgroundColor = "#050B10"
+secondaryBackgroundColor = "#1E293B"
+textColor = "#F1F5F9"
+borderColor = "#263445"
+linkColor = "#5EEAD4"
+codeBackgroundColor = "#111C2B"
+
+[theme.dark.sidebar]
+backgroundColor = "#081018"
+secondaryBackgroundColor = "#1E293B"

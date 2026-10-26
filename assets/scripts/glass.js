@@ -6,6 +6,34 @@
     });
   };
 
+  // Streamlit's theme sets the page's text color, so its brightness tells light from dark.
+  const currentTheme = () => {
+    const [r, g, b] = (getComputedStyle(document.body).color.match(/\d+/g) || [255, 255, 255]).map(Number);
+    return 0.299 * r + 0.587 * g + 0.114 * b > 128 ? "dark" : "light";
+  };
+
+  // Calendar iframes can't see the page's attribute, so copy it into each one.
+  const themeFrames = (theme) => {
+    document.querySelectorAll("iframe").forEach((frame) => {
+      if (!frame.__studyflowThemed) {
+        frame.__studyflowThemed = true;
+        frame.addEventListener("load", () => themeFrames(document.documentElement.dataset.sfTheme));
+      }
+      try {
+        const root = frame.contentDocument && frame.contentDocument.documentElement;
+        if (root && root.dataset.sfTheme !== theme) root.dataset.sfTheme = theme;
+      } catch (error) {
+        // A frame from another site: nothing to theme.
+      }
+    });
+  };
+
+  const syncTheme = () => {
+    const theme = currentTheme();
+    if (document.documentElement.dataset.sfTheme !== theme) document.documentElement.dataset.sfTheme = theme;
+    themeFrames(theme);
+  };
+
   if (!window.__studyflowCards) {
     window.__studyflowCards = true;
     let queued = false;
@@ -15,10 +43,13 @@
       requestAnimationFrame(() => {
         queued = false;
         markCards();
+        syncTheme();
       });
-    }).observe(document.body, { childList: true, subtree: true });
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => requestAnimationFrame(syncTheme));
   }
   markCards();
+  syncTheme();
 
   if (document.getElementById("studyflow-glass")) return;
 

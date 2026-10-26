@@ -136,15 +136,13 @@ def _free_slot(day_plan, length, style, prefer=None):
 def _chunks(total, session_length):
     session_length = max(MIN_CHUNK, min(MAX_SESSION, session_length))
     total = max(MIN_CHUNK, total)
-    count = -(-total // session_length)
-    size = max(MIN_CHUNK, _round_to_five(total / count))
-    pieces = [size] * count
-    pieces[-1] = max(MIN_CHUNK, total - size * (count - 1))
+    # Fewer, longer pieces beat padding short ones up to MIN_CHUNK and planning extra time.
+    count = min(-(-total // session_length), total // MIN_CHUNK)
+    # Split into multiples of five that add up to exactly the total.
+    fives, extra = divmod(total, 5)
+    pieces = [(fives // count + (1 if index < fives % count else 0)) * 5 for index in range(count)]
+    pieces[-1] += extra
     return pieces
-
-
-def _round_to_five(value):
-    return int(round(value / 5.0)) * 5
 
 
 def _target_index(index, count, window_size, test):
@@ -170,7 +168,9 @@ def _sorted_assignments(assignments, today):
 # BUILD THE PLAN
 # ============================================================
 
-def build_plan(assignments, style, activities, now, is_school_day):
+def build_plan(assignments, style, activities, now, is_school_day, booked=()):
+    """Plan the assignments' minutes into free time. `booked` sessions are already
+    on the calendar: new sessions go around them and count them toward each day's limit."""
     today = now.date()
     now_minutes = now.hour * 60 + now.minute
     session_length = _number(style.get("session_length"), 45)
@@ -195,6 +195,16 @@ def build_plan(assignments, style, activities, now, is_school_day):
                 "sessions": []
             }
         return days[day]
+
+    for item in booked or []:
+        day = _parse_day(item.get("date"))
+        start = _minutes(item.get("start_time"))
+        end = _minutes(item.get("end_time"))
+        if day is None or day < today or start is None or end is None or end <= start:
+            continue
+        plan = day_plan(day)
+        plan["sessions"].append({"day": day, "start": start, "end": end, "minutes": end - start})
+        plan["used"] += end - start
 
     sessions = []
     unscheduled = []
@@ -273,6 +283,16 @@ def build_plan(assignments, style, activities, now, is_school_day):
 
     sessions.sort(key=lambda item: (item["date"], item["start_time"]))
     return sessions, unscheduled
+
+
+def clashes(session, activities):
+    """True when a planned session overlaps an activity or one-time event."""
+    day = _parse_day(session.get("date"))
+    start = _minutes(session.get("start_time"))
+    end = _minutes(session.get("end_time"))
+    if day is None or start is None or end is None:
+        return False
+    return any(start < block_end and end > block_start for block_start, block_end in _blocked(day, {}, activities))
 
 
 # ============================================================
