@@ -154,18 +154,25 @@ html[data-sf-theme="light"] {
     margin: 0 auto;
 }
 
-.st-key-logo_dark,
-.st-key-logo_light {
-    align-items: center;
+/* The dark and light logos are stacked in one grid cell, so they always line up exactly;
+   only the one matching the theme is visible. */
+.st-key-sidebar_logo {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
 }
 
-.st-key-logo_light,
-html[data-sf-theme="light"] .st-key-logo_dark {
-    display: none !important;
+.st-key-sidebar_logo > * {
+    grid-area: 1 / 1;
 }
 
-html[data-sf-theme="light"] .st-key-logo_light {
-    display: flex !important;
+.st-key-sidebar_logo > :nth-child(2),
+html[data-sf-theme="light"] .st-key-sidebar_logo > :nth-child(1) {
+    visibility: hidden;
+}
+
+html[data-sf-theme="light"] .st-key-sidebar_logo > :nth-child(2) {
+    visibility: visible;
 }
 
 .stTabs [data-baseweb="tab-list"] {
@@ -728,6 +735,109 @@ iframe[title*="calendar"] {
     [class*="st-key-fc_controls_"] .stButton button p {
         font-size: 0.9rem !important;
     }
+}
+
+
+/* ============================================================
+   PHONE NAVIGATION
+   ============================================================ */
+
+@media (max-width: 640px) {
+    [data-testid="stMainBlockContainer"] {
+        padding-top: 4.75rem !important;
+    }
+
+    [data-testid="stMain"]:has([data-testid="stTabs"]) .studyflow-title {
+        font-size: 28px;
+        margin-bottom: 4px;
+    }
+
+    [data-testid="stMain"]:has([data-testid="stTabs"]) [data-testid="stElementContainer"]:has(.studyflow-subtitle) {
+        display: none;
+    }
+
+    .greeting {
+        font-size: 19px;
+        margin-top: 0;
+    }
+
+    .greeting-icon {
+        font-size: 19px;
+    }
+
+    .greeting-date {
+        font-size: 13.5px;
+        margin-bottom: 0;
+    }
+
+    [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] hr):has(~ [data-testid="stTabs"]) {
+        display: none;
+    }
+
+    [data-testid="stTabPanel"] h2 {
+        font-size: 1.65rem !important;
+    }
+
+    [role="tablist"]:not([data-testid="stTabPanel"] *) {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 999990;
+        display: flex;
+        gap: 0 !important;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+        background: var(--sf-header) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-top: 1px solid var(--sf-border);
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.18);
+        overflow: visible !important;
+    }
+
+    [role="tablist"]:not([data-testid="stTabPanel"] *) [data-testid="stTab"] {
+        flex: 1 1 0;
+        min-width: 0;
+        height: auto;
+        margin: 0 !important;
+        padding: 2px 0 !important;
+        justify-content: center;
+    }
+
+    [role="tablist"]:not([data-testid="stTabPanel"] *) [data-testid="stTab"] p {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        font-size: 10.5px !important;
+        font-weight: 600;
+        line-height: 1.1;
+        white-space: nowrap;
+        color: var(--sf-muted) !important;
+    }
+
+    [role="tablist"]:not([data-testid="stTabPanel"] *) [data-testid="stTab"] p span[role="img"] {
+        font-size: 1.35rem !important;
+        padding: 3px 16px;
+        border-radius: 999px;
+        transition: background-color 0.2s ease;
+    }
+
+    [role="tablist"]:not([data-testid="stTabPanel"] *) [data-testid="stTab"][aria-selected="true"] p {
+        color: var(--sf-accent) !important;
+    }
+
+    [role="tablist"]:not([data-testid="stTabPanel"] *) [data-testid="stTab"][aria-selected="true"] p span[role="img"] {
+        background-color: var(--sf-accent-wash);
+    }
+
+    [role="tablist"]:not([data-testid="stTabPanel"] *) .react-aria-SelectionIndicator,
+    [data-testid="stTabs"]:not([data-testid="stTabPanel"] *) > [data-testid^="stTabsScroll"] {
+        display: none !important;
+    }
+
 }
 
 

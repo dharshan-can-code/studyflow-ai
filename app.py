@@ -2816,10 +2816,9 @@ if not st.session_state.profile.get("onboarded"):
 # ============================================================
 
 with st.sidebar:
-    # Both logos are sent; app.css shows the one that matches the light or dark theme.
-    with st.container(key="logo_dark"):
+    # Both logos sit in the same spot; app.css shows the one that matches the light or dark theme.
+    with st.container(key="sidebar_logo"):
         st.image(LOGO_PATH, width=140)
-    with st.container(key="logo_light"):
         st.image(LIGHT_LOGO_PATH, width=140)
 
     if SUPABASE is None:
