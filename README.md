@@ -74,6 +74,11 @@ StudyFlow does that part. You tell it what's due (by typing it, or by snapping a
 - Sign in with Google to use StudyFlow on any device, or continue as a guest and your plan is saved for that browser.
 - Everything is saved to a database automatically. You can delete all of your data at any time from the sidebar.
 
+### Light and dark mode
+- Pick **Light**, **Dark**, or **System** (follows your device) from the ⋮ menu in the top right. Streamlit remembers the choice on that browser.
+- Both themes are set in [`.streamlit/config.toml`](.streamlit/config.toml), and the calendar, charts, animated background, and logo all switch with them.
+- Type is set in Bricolage Grotesque for headings, Figtree for text, and JetBrains Mono for small labels.
+
 ### Works on phones
 - The layout adapts to small screens: the calendar opens in day view, and tabs and buttons resize to fit.
 

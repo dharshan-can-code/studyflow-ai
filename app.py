@@ -78,6 +78,7 @@ APP_DIR = Path(__file__).parent
 ASSETS_DIR = APP_DIR / "assets"
 FAVICON_PATH = str(ASSETS_DIR / "images" / "favicon.svg")
 LOGO_PATH = str(ASSETS_DIR / "images" / "studyflow_logo.png")
+LIGHT_LOGO_PATH = str(ASSETS_DIR / "images" / "studyflow_logo_light.png")
 APP_CSS = ASSETS_DIR / "styles" / "app.css"
 
 st.set_page_config(
@@ -1467,7 +1468,7 @@ def delete_event(event_id):
 def show_event_manager():
     upcoming = calendar_events.upcoming(one_time_events(), student_now().date())
 
-    with st.expander(":material/event_busy: One-time events"):
+    with st.expander("One-time events"):
         st.caption(
             "Appointments, games, trips: anything that only happens once. "
             "Your study plan works around them. You can also click or drag on the calendar to add one."
@@ -1939,15 +1940,8 @@ def course_load_html(rows):
 def styled_chart(chart):
     return (
         chart.properties(height=230)
-        .configure(background="transparent", font="Inter")
-        .configure_axis(
-            labelColor="#94A3B8",
-            labelFontSize=12,
-            gridColor="#334155",
-            gridDash=[2, 4],
-            domainColor="#475569",
-            tickColor="#475569"
-        )
+        .configure(background="transparent")
+        .configure_axis(labelFontSize=12, gridDash=[2, 4])
         .configure_view(stroke=None)
     )
 
@@ -1965,7 +1959,8 @@ def horizontal_bars(values, label_field, value_field, color):
         tooltip=[alt.Tooltip(f"{label_field}:N"), alt.Tooltip(f"{value_field}:Q")]
     )
     bars = base.mark_bar(color=color, cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height={"band": 0.6})
-    labels = base.mark_text(align="left", dx=6, color="#CBD5E1", fontSize=12).encode(text=f"{value_field}:Q")
+    # Mid-gray reads on both the light and dark theme (chart text doesn't follow the theme).
+    labels = base.mark_text(align="left", dx=6, fontSize=12, fontWeight=600, color="#7C8A9A").encode(text=f"{value_field}:Q")
     return bars + labels
 
 
@@ -2821,10 +2816,11 @@ if not st.session_state.profile.get("onboarded"):
 # ============================================================
 
 with st.sidebar:
-    st.sidebar.image(
-    LOGO_PATH,
-    width=140
-    )
+    # Both logos are sent; app.css shows the one that matches the light or dark theme.
+    with st.container(key="logo_dark"):
+        st.image(LOGO_PATH, width=140)
+    with st.container(key="logo_light"):
+        st.image(LIGHT_LOGO_PATH, width=140)
 
     if SUPABASE is None:
         st.caption("Saving is off because no database is connected.")
@@ -2931,11 +2927,10 @@ tab1, tab2, tab3, analytics_tab, tab4, tab5 = st.tabs(
 # ============================================================
 
 with tab1:
-    st.header(":material/edit_note: Add Assignments")
+    st.header("Add Assignments")
     st.caption(
         "Describe your work, upload a photo or PDF of an assignment sheet, "
-        "syllabus, or planner page, or do both. StudyFlow will pull out the "
-        "details so you can check and edit them before anything is added."
+        "syllabus, or planner page, or do both."
     )
     form_number = st.session_state.assignment_form
 
@@ -3145,7 +3140,7 @@ with tab1:
 # ============================================================
 
 with tab2:
-    st.header(":material/calendar_month: Your Study Plan")
+    st.header("Your Study Plan")
     show_event_manager()
     if not st.session_state.study_plan:
         if st.button(
@@ -3255,8 +3250,7 @@ with tab2:
 # ============================================================
 
 with tab3:
-    st.markdown('<div class="chat-kicker">Your study sidekick</div>', unsafe_allow_html=True)
-    st.header(":material/forum: StudyFlow AI")
+    st.header("AI Assistant")
     st.markdown(
         '<p class="chat-subtitle">Ask about a tough topic, plan your week, '
         'or attach a photo of a problem for a step-by-step explanation.</p>',
@@ -3276,10 +3270,7 @@ with tab3:
         if not st.session_state.messages:
             welcome_slot.markdown(
                 '<div class="welcome-card"><strong>Hi, I\'m StudyFlow AI </strong><br>'
-                'Ask me to explain something, or tell me what\'s going on and I\'ll update your planner: '
-                '"add my bio test on Friday", "I have a dentist appointment Tuesday at 3", '
-                '"I missed yesterday\'s study session", "I finished my essay", or '
-                '"make flashcards on the causes of World War I".</div>',
+                'Ask me to explain something, or tell me what\'s going on and I\'ll update your planner. </div>',
                 unsafe_allow_html=True
             )
 
@@ -3407,7 +3398,7 @@ with tab3:
 # ============================================================
 
 with analytics_tab:
-    st.header(":material/insights: Analytics")
+    st.header("Analytics")
     st.markdown(
         '<p class="chat-subtitle">Your study insights this week. '
         'Check off sessions in the Study Plan tab as you finish them.</p>',
@@ -3481,7 +3472,7 @@ with analytics_tab:
                         ]
                     )
                 )
-                st.altair_chart(styled_chart(chart), width="stretch", theme=None)
+                st.altair_chart(styled_chart(chart), width="stretch", theme="streamlit")
                 if not stats["done"]:
                     st.caption("Check off study sessions to fill this in.")
 
@@ -3494,7 +3485,7 @@ with analytics_tab:
                     st.altair_chart(
                         styled_chart(horizontal_bars(values, "Subject", "Assignments", "#14B8A6")),
                         width="stretch",
-                        theme=None
+                        theme="streamlit"
                     )
                 else:
                     st.caption("No assignments yet.")
@@ -3512,7 +3503,7 @@ with analytics_tab:
                     st.altair_chart(
                         styled_chart(horizontal_bars(values, "Difficulty", "Assignments", "#14B8A6")),
                         width="stretch",
-                        theme=None
+                        theme="streamlit"
                     )
                 else:
                     st.caption("No assignments yet.")
@@ -3568,7 +3559,7 @@ with analytics_tab:
 # ============================================================
 
 with tab4:
-    st.header(":material/style: Flashcards")
+    st.header("Flashcards")
     show_flashcard_maker()
     flashcard_sets = st.session_state.flashcard_sets
 
@@ -3599,7 +3590,7 @@ with tab4:
 # ============================================================
 
 with tab5:
-    st.header(":material/settings: Settings")
+    st.header("Settings")
     st.markdown(
         '<p class="chat-subtitle">Edit your profile, courses, and study preferences.</p>',
         unsafe_allow_html=True

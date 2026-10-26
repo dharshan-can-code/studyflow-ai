@@ -1,4 +1,64 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600..800&display=swap');
+
+/* ============================================================
+   THEME TOKENS
+   StudyFlow's page copies its light or dark theme onto this frame as data-sf-theme.
+   The calendar component nests this whole file under its own wrapper, so "&" is
+   that wrapper and :root or html selectors on their own would never match.
+   ============================================================ */
+
+& {
+    --cal-bg: #0A141E;
+    --cal-text: #F8FAFC;
+    --cal-text-soft: #CBD5E1;
+    --cal-muted: #94A3B8;
+    --cal-line: rgba(148, 163, 184, 0.16);
+    --cal-neutral: rgba(30, 41, 59, 0.6);
+    --cal-button: #1E293B;
+    --cal-button-line: #334155;
+    --cal-button-hover: #334155;
+    --cal-button-hover-line: #475569;
+    --cal-accent: #2DD4BF;
+    --cal-busy-a: rgba(51, 65, 85, 0.75);
+    --cal-busy-b: rgba(30, 41, 59, 0.75);
+    --cal-busy-line: #334155;
+    --cal-event: #475569;
+    --cal-event-line: #64748B;
+    --cal-event-text: #F8FAFC;
+    --cal-ab-line: #475569;
+    --cal-popover: #111C33;
+    --cal-popover-head: #1E293B;
+    --cal-list-day: rgba(30, 41, 59, 0.9);
+    --cal-shadow: rgba(0, 0, 0, 0.3);
+    --cal-scrollbar: #334155;
+}
+
+html[data-sf-theme="light"] & {
+    --cal-bg: #FFFFFF;
+    --cal-text: #0F1E2A;
+    --cal-text-soft: #334155;
+    --cal-muted: #5B6B7C;
+    --cal-line: rgba(15, 30, 42, 0.1);
+    --cal-neutral: rgba(228, 237, 235, 0.7);
+    --cal-button: #F4F8F7;
+    --cal-button-line: #D2DFDC;
+    --cal-button-hover: #E4EDEB;
+    --cal-button-hover-line: #B8CCC7;
+    --cal-accent: #0D9488;
+    --cal-busy-a: rgba(203, 213, 225, 0.55);
+    --cal-busy-b: rgba(226, 232, 240, 0.55);
+    --cal-busy-line: #CBD5E1;
+    --cal-event: #E2E8F0;
+    --cal-event-line: #CBD5E1;
+    --cal-event-text: #0F1E2A;
+    --cal-ab-line: #B8C4D0;
+    --cal-popover: #FFFFFF;
+    --cal-popover-head: #F1F5F9;
+    --cal-list-day: rgba(228, 237, 235, 0.9);
+    --cal-shadow: rgba(15, 30, 42, 0.15);
+    --cal-scrollbar: #CFDDD9;
+}
+
 
 /* ============================================================
    PAGE
@@ -13,7 +73,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #334155;
+    background: var(--cal-scrollbar);
     border-radius: 10px;
 }
 
@@ -23,25 +83,26 @@
    ============================================================ */
 
 .fc {
-    --fc-border-color: rgba(148, 163, 184, 0.16);
+    --fc-border-color: var(--cal-line);
     --fc-page-bg-color: transparent;
-    --fc-neutral-bg-color: rgba(30, 41, 59, 0.6);
-    --fc-neutral-text-color: #94A3B8;
+    --fc-neutral-bg-color: var(--cal-neutral);
+    --fc-neutral-text-color: var(--cal-muted);
     --fc-today-bg-color: rgba(20, 184, 166, 0.07);
     --fc-now-indicator-color: #F43F5E;
     --fc-highlight-color: rgba(45, 212, 191, 0.15);
     --fc-list-event-hover-bg-color: rgba(20, 184, 166, 0.12);
     --fc-event-border-color: transparent;
-    --fc-button-text-color: #E2E8F0;
-    --fc-button-bg-color: #1E293B;
-    --fc-button-border-color: #334155;
-    --fc-button-hover-bg-color: #334155;
-    --fc-button-hover-border-color: #475569;
+    --fc-button-text-color: var(--cal-text-soft);
+    --fc-button-bg-color: var(--cal-button);
+    --fc-button-border-color: var(--cal-button-line);
+    --fc-button-hover-bg-color: var(--cal-button-hover);
+    --fc-button-hover-border-color: var(--cal-button-hover-line);
     --fc-button-active-bg-color: #0F766E;
     --fc-button-active-border-color: #0F766E;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Figtree', sans-serif;
     font-size: 0.85rem;
-    background: #0A141E;
+    color: var(--cal-text);
+    background: var(--cal-bg);
     padding: 14px;
 }
 
@@ -51,10 +112,11 @@
 }
 
 .fc .fc-toolbar-title {
-    font-family: 'Sora', sans-serif;
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #F8FAFC;
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--cal-text);
 }
 
 .fc .fc-button {
@@ -73,20 +135,20 @@
 .fc .fc-daygrid-day-number,
 .fc .fc-list-day-text,
 .fc .fc-list-day-side-text {
-    color: #CBD5E1;
+    color: var(--cal-text-soft);
     text-decoration: none;
     font-weight: 500;
 }
 
 .fc .fc-day-today .fc-col-header-cell-cushion,
 .fc .fc-day-today .fc-daygrid-day-number {
-    color: #2DD4BF;
+    color: var(--cal-accent);
     font-weight: 700;
 }
 
 .fc .fc-timegrid-slot-label-cushion,
 .fc .fc-timegrid-axis-cushion {
-    color: #94A3B8;
+    color: var(--cal-muted);
     font-size: 0.75rem;
 }
 
@@ -111,7 +173,7 @@
     border-radius: 6px;
     padding: 1px 3px;
     font-weight: 500;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 6px var(--cal-shadow);
 }
 
 .fc-event.sf-session .fc-event-main {
@@ -132,8 +194,8 @@
 }
 
 .fc-event.sf-busy {
-    background: repeating-linear-gradient(135deg, rgba(51, 65, 85, 0.75), rgba(51, 65, 85, 0.75) 6px, rgba(30, 41, 59, 0.75) 6px, rgba(30, 41, 59, 0.75) 12px) !important;
-    border: 1px solid #334155 !important;
+    background: repeating-linear-gradient(135deg, var(--cal-busy-a), var(--cal-busy-a) 6px, var(--cal-busy-b) 6px, var(--cal-busy-b) 12px) !important;
+    border: 1px solid var(--cal-busy-line) !important;
     border-radius: 6px;
     cursor: default;
 }
@@ -141,12 +203,12 @@
 .fc-event.sf-busy .fc-event-main,
 .fc-event.sf-busy .fc-event-title,
 .fc-event.sf-busy .fc-event-time {
-    color: #CBD5E1 !important;
+    color: var(--cal-text-soft) !important;
 }
 
 .fc-event.sf-event {
-    background: #475569 !important;
-    border: 1px solid #64748B !important;
+    background: var(--cal-event) !important;
+    border: 1px solid var(--cal-event-line) !important;
     border-left: 4px solid #F59E0B !important;
     border-radius: 6px;
     font-weight: 500;
@@ -155,7 +217,7 @@
 .fc-event.sf-event .fc-event-main,
 .fc-event.sf-event .fc-event-title,
 .fc-event.sf-event .fc-event-time {
-    color: #F8FAFC !important;
+    color: var(--cal-event-text) !important;
 }
 
 .fc .fc-highlight {
@@ -164,29 +226,29 @@
 
 .fc-event.sf-ab {
     background: transparent !important;
-    border: 1px dashed #475569 !important;
+    border: 1px dashed var(--cal-ab-line) !important;
     border-radius: 6px;
     cursor: default;
 }
 
 .fc-event.sf-ab .fc-event-main,
 .fc-event.sf-ab .fc-event-title {
-    color: #94A3B8 !important;
+    color: var(--cal-muted) !important;
     font-weight: 500;
 }
 
 .fc .fc-daygrid-more-link {
-    color: #2DD4BF;
+    color: var(--cal-accent);
 }
 
 .fc .fc-popover {
-    background: #111C33;
-    border-color: #334155;
+    background: var(--cal-popover);
+    border-color: var(--cal-button-line);
 }
 
 .fc .fc-popover-header {
-    background: #1E293B;
-    color: #F8FAFC;
+    background: var(--cal-popover-head);
+    color: var(--cal-text);
 }
 
 
@@ -200,7 +262,7 @@
 }
 
 .fc-theme-standard .fc-list-day-cushion {
-    background: rgba(30, 41, 59, 0.9) !important;
+    background: var(--cal-list-day) !important;
 }
 
 .fc .fc-list-event:hover td {
@@ -209,12 +271,12 @@
 
 .fc .fc-list-event-title,
 .fc .fc-list-event-time {
-    color: #E2E8F0;
+    color: var(--cal-text-soft);
 }
 
 .fc .fc-list-empty {
     background: transparent;
-    color: #94A3B8;
+    color: var(--cal-muted);
 }
 
 
