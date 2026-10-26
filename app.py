@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from pathlib import Path
 from ollama import Client, ResponseError
-import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 
 from studyflow.data import storage, uploads
@@ -152,7 +151,8 @@ SETUP_STEPS = [
     ("Your Courses", "Add the classes you're taking this year"),
     ("Activities", "Sports, clubs, a job: anything that takes up your time"),
     ("Daily Routine", "When your day starts, ends, and when you do homework"),
-    ("Study Preferences", "How you like to study, so your plan fits you")
+    ("Study Preferences", "How you like to study, so your plan fits you"),
+    ("Reminders", "A daily email with what to study, so nothing sneaks up on you")
 ]
 
 
@@ -277,14 +277,14 @@ def show_welcome():
             with st.container(border=True):
                 st.subheader("Sign in with Google")
                 st.caption("Your plan is saved to your account and works on any device.")
-                if st.button("Sign in with Google", type="primary", use_container_width=True):
+                if st.button("Sign in with Google", type="primary", width="stretch"):
                     st.login()
 
     with guest_column:
         with st.container(border=True):
             st.subheader("Continue without signing in")
             st.caption("Your plan is saved on this browser only. You can sign in later.")
-            if st.button("Continue as guest", use_container_width=True):
+            if st.button("Continue as guest", width="stretch"):
                 st.session_state.guest_chosen = True
                 st.rerun()
 
@@ -476,7 +476,11 @@ def date_context(days=14):
     today = student_now().date()
     today_note = day_note(today)
 
-    lines = [f"Today is {today:%A}, {today:%Y-%m-%d}" + (f" ({today_note})." if today_note else ".")]
+    tomorrow = today + timedelta(days=1)
+    lines = [
+        f"Today is {today:%A}, {today:%Y-%m-%d}" + (f" ({today_note})." if today_note else "."),
+        f"Tomorrow is {tomorrow:%A}, {tomorrow:%Y-%m-%d}."
+    ]
 
     if uses_ab_calendar():
         lines.append(
@@ -593,6 +597,14 @@ def stream_model(model, messages, temperature):
         yield from client.chat(**request)
 
 
+def parse_json_reply(text):
+    # Some models wrap JSON in ```json fences even when asked for plain JSON.
+    cleaned = str(text or "").strip()
+    for fence in ("```json", "```"):
+        cleaned = cleaned.removeprefix(fence)
+    return json.loads(cleaned.removesuffix("```").strip())
+
+
 def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None, model=MODEL, temperature=0):
     try:
         messages = build_messages(prompt, system_message, conversation, images)
@@ -601,24 +613,12 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None
         result = response.message.content
 
         print("RAW RESPONSE:")
-        print(repr(result))
+        print(ascii(result))
 
         if not use_json:
             return result.strip()
 
-        cleaned_result = result.strip()
-
-        if cleaned_result.startswith("```json"):
-            cleaned_result = cleaned_result[7:]
-        elif cleaned_result.startswith("```"):
-            cleaned_result = cleaned_result[3:]
-
-        if cleaned_result.endswith("```"):
-            cleaned_result = cleaned_result[:-3]
-
-        cleaned_result = cleaned_result.strip()
-
-        parsed = json.loads(cleaned_result)
+        parsed = parse_json_reply(result)
 
         if not isinstance(parsed, dict):
             st.error("AI returned an unexpected format.")
@@ -742,7 +742,7 @@ def show_flashcard_maker():
             key=f"flashcard_file_{form}"
         )
 
-        if st.button(":material/style: Make flashcards", type="primary", use_container_width=True, key=f"flashcard_make_{form}"):
+        if st.button(":material/style: Make flashcards", type="primary", width="stretch", key=f"flashcard_make_{form}"):
             if not request.strip() and notes_file is None:
                 st.warning("Type a topic or upload your notes first.")
                 return
@@ -811,6 +811,21 @@ COURSE_RULE = (
     "means their Precalculus course, \"bio\" their Biology course, and \"english essay\" their English course). "
     "Use \"General\" only when the item clearly doesn't belong to any of their courses."
 )
+
+NO_COURSES_RULE = (
+    "The student hasn't listed their courses yet, so the course is the subject the item is for "
+    "(for example \"Biology\" or \"English\"), or \"General\" if the subject isn't clear."
+)
+
+
+def course_rule():
+    return COURSE_RULE if setup.course_names(st.session_state.courses) else NO_COURSES_RULE
+
+
+def course_list_text():
+    names = setup.course_names(st.session_state.courses)
+    return json.dumps(names) if names else "None listed yet."
+
 
 COURSE_FILLER_WORDS = {
     "ap", "ib", "honors", "hn", "h", "aa", "gt", "de", "dual", "enrollment", "advanced",
@@ -1068,7 +1083,7 @@ def edit_assignment_dialog(index):
 
     save_column, cancel_column = st.columns(2)
     with save_column:
-        if st.button("Save", type="primary", use_container_width=True, key=f"{key}_save"):
+        if st.button("Save", type="primary", width="stretch", key=f"{key}_save"):
             if not name.strip():
                 st.warning("Please give the assignment a name.")
             else:
@@ -1084,10 +1099,10 @@ def edit_assignment_dialog(index):
                     "study_material": study_material
                 })
                 save()
-                st.session_state.flash = "Assignment updated. Regenerate your study plan to include the changes."
+                st.session_state.flash = "Assignment updated. Press Update my plan on the Study Plan tab to include the changes."
                 st.rerun()
     with cancel_column:
-        if st.button("Cancel", use_container_width=True, key=f"{key}_cancel"):
+        if st.button("Cancel", width="stretch", key=f"{key}_cancel"):
             st.rerun()
 
 
@@ -1117,7 +1132,7 @@ def extract_assignments(text, uploaded_file=None):
 {date_context()}
 
 The student's courses are:
-{json.dumps(setup.course_names(st.session_state.courses))}
+{course_list_text()}
 
 {source}
 
@@ -1144,7 +1159,7 @@ Rules:
 - Only include items the student described or that actually appear in the file. Never invent items.
 - If the student wrote a description and uploaded a file, use the description to fill in or
   correct details from the file (for example, which course it is for or when it is due).
-- {COURSE_RULE}
+- {course_rule()}
 - {ASSIGNMENT_NAME_RULE}
 - Use YYYY-MM-DD for the due date. Convert relative dates such as "next Tuesday" using the calendar above.
 - If an item has no due date, use "Not set".
@@ -1233,7 +1248,7 @@ def show_calendar_export(sessions, zone_name):
             file_name="studyflow-study-plan.ics",
             mime="text/calendar",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             key="export_download"
         )
 
@@ -1310,7 +1325,7 @@ Return ONLY valid JSON in exactly this format:
             if "think" not in str(error).lower():
                 raise
             response = task_client.chat(**request)
-        data = json.loads(response.message.content)
+        data = parse_json_reply(response.message.content)
         print(f"AI tasks written in {time.monotonic() - started:.1f}s")
     except Exception as error:
         print(f"AI tasks skipped after {time.monotonic() - started:.1f}s: {type(error).__name__}")
@@ -1375,7 +1390,7 @@ def overlap_note(event):
         return ""
     return (
         f"This overlaps {count} study session{'s' if count != 1 else ''}. "
-        "Drag the session somewhere else, or generate your study plan again."
+        "Drag the session somewhere else, or press Update my plan to move it automatically."
     )
 
 
@@ -1437,7 +1452,7 @@ def add_event_from_form(values):
     if note:
         st.session_state.flash = f"Added {event['name']}. {note}"
     elif st.session_state.study_plan:
-        st.session_state.flash = f"Added {event['name']}. Generate your study plan again to plan around it."
+        st.session_state.flash = f"Added {event['name']}. Press Update my plan to plan around it."
     else:
         st.session_state.flash = f"Added {event['name']}. Your study plan will work around it."
     return True
@@ -1490,12 +1505,12 @@ def show_new_event_form():
         values = event_form(f"pending_event_{pending['key']}", pending)
         save_column, cancel_column = st.columns(2)
         with save_column:
-            if st.button("Add event", type="primary", use_container_width=True, key=f"pending_save_{pending['key']}"):
+            if st.button("Add event", type="primary", width="stretch", key=f"pending_save_{pending['key']}"):
                 if add_event_from_form(values):
                     st.session_state.pending_event = None
                     st.rerun()
         with cancel_column:
-            if st.button("Cancel", use_container_width=True, key=f"pending_cancel_{pending['key']}"):
+            if st.button("Cancel", width="stretch", key=f"pending_cancel_{pending['key']}"):
                 st.session_state.pending_event = None
                 st.rerun()
 
@@ -1602,6 +1617,13 @@ def show_calendar_details(zone_name):
             if st.session_state.get(done_key) != bool(session.get("done")):
                 st.session_state[done_key] = bool(session.get("done"))
             st.toggle("Mark as done", key=done_key, on_change=set_session_done, args=(index, done_key))
+            if not session.get("done") and st.button(
+                ":material/event_repeat: Can't make it? Move it",
+                key=f"calendar_skip_{index}",
+                help="StudyFlow finds another free time before it's due."
+            ):
+                st.session_state.flash = skip_session(index)
+                st.rerun()
 
             google_link = calendar_export.google_calendar_link(session, zone_name)
             if google_link:
@@ -1696,47 +1718,187 @@ def show_session_list(sessions, zone_name, hide_done):
                 google_link = calendar_export.google_calendar_link(session, zone_name)
                 if google_link:
                     st.markdown(f":material/calendar_add_on: [Add to Google Calendar]({google_link})")
+                if not is_done and st.button(
+                    ":material/event_repeat: Can't make it? Move it",
+                    key=f"session_skip_{plan_key}_{index}",
+                    type="tertiary",
+                    help="StudyFlow finds another free time before it's due."
+                ):
+                    st.session_state.flash = skip_session(index)
+                    st.rerun()
 
 
-def generate_plan():
-    if not st.session_state.assignments:
+def _work_key(item, name_field="assignment"):
+    return (item.get(name_field) or "", item.get("course") or "")
+
+
+def session_end(session):
+    day = due_date_value(session.get("date"))
+    end = setup.to_time(session.get("end_time"))
+    if not day or not end:
         return None
+    return datetime.combine(day, end)
 
-    # Keep checked-off sessions and only schedule the work that's left.
-    finished = [session for session in plan_sessions() if session.get("done")]
-    finished_minutes = {}
-    for session in finished:
-        match = (session.get("assignment"), session.get("course"))
-        finished_minutes[match] = finished_minutes.get(match, 0) + _whole_number(session.get("minutes"), 0)
+
+def busy_blocks():
+    return setup.normalize_activities(st.session_state.activities) + calendar_events.as_busy_blocks(one_time_events())
+
+
+def build_study_plan(keep_future=False, avoid=()):
+    """Plan the work that's left. Checked-off sessions always stay. With keep_future, sessions still
+    ahead stay where they are too, so only missed, moved, or newly added work gets new times."""
+    if not st.session_state.assignments:
+        return None, 0
+
+    now = student_now().replace(tzinfo=None)
+    busy = busy_blocks() + list(avoid)
+    due_days = {
+        _work_key(assignment, "name"): due_date_value(assignment.get("due_date"))
+        for assignment in st.session_state.assignments
+    }
+
+    finished, kept = [], []
+    for session in plan_sessions():
+        if session.get("done"):
+            finished.append(session)
+            continue
+        if not keep_future:
+            continue
+        key = _work_key(session)
+        end = session_end(session)
+        due = due_days.get(key)
+        if key not in due_days or end is None or end <= now:
+            continue  # its assignment is gone, or it was missed: plan that time again
+        if due and end.date() >= due:
+            continue  # the due date moved earlier
+        if scheduler.clashes(session, busy):
+            continue  # an event or activity now takes that time
+        kept.append(session)
+
+    planned_minutes = {}
+    for session in finished + kept:
+        key = _work_key(session)
+        planned_minutes[key] = planned_minutes.get(key, 0) + _whole_number(session.get("minutes"), 0)
 
     remaining = []
     for assignment in st.session_state.assignments:
-        match = (assignment.get("name"), assignment.get("course") or "")
-        left = _whole_number(assignment.get("estimated_minutes"), 60) - finished_minutes.get(match, 0)
+        left = _whole_number(assignment.get("estimated_minutes"), 60) - planned_minutes.get(_work_key(assignment, "name"), 0)
         if left > 0:
             remaining.append({**assignment, "estimated_minutes": left})
 
     sessions, unscheduled = scheduler.build_plan(
         remaining,
         setup.complete_study_style(st.session_state.study_style),
-        setup.normalize_activities(st.session_state.activities)
-        + calendar_events.as_busy_blocks(one_time_events()),
-        student_now().replace(tzinfo=None),
-        is_school_day_for_student
+        busy,
+        now,
+        is_school_day_for_student,
+        booked=kept
     )
 
     tasks = write_tasks(sessions)
     for number, session in enumerate(sessions, start=1):
         session["task"] = tasks.get(number) or scheduler.default_task(session)
 
-    all_sessions = finished + [scheduler.public_session(session) for session in sessions]
+    all_sessions = finished + kept + [scheduler.public_session(session) for session in sessions]
     all_sessions.sort(key=lambda session: (session.get("date", ""), session.get("start_time", "")))
 
-    return {
+    plan = {
         "study_sessions": all_sessions,
         "unscheduled": unscheduled,
         "created": student_now().isoformat()
     }
+    return plan, len(sessions)
+
+
+def generate_plan():
+    return build_study_plan()[0]
+
+
+def apply_plan(plan):
+    st.session_state.study_plan = plan
+    st.session_state.calendar_selected = None
+    save()
+
+
+def update_plan(avoid=(), spinner_text="Updating your study plan..."):
+    """Fit missed or new work into the plan without moving anything else. Returns a message."""
+    with st.spinner(spinner_text):
+        plan, added = build_study_plan(keep_future=True, avoid=avoid)
+    if plan is None:
+        return "Add an assignment first, then StudyFlow can plan it."
+    apply_plan(plan)
+    message = (
+        f"Updated your plan with {added} new session{'s' if added != 1 else ''}."
+        if added else "Your plan is up to date."
+    )
+    if plan["unscheduled"]:
+        message += " Some work didn't fit before its due date: see the Study Plan tab."
+    return message
+
+
+def missed_sessions():
+    now = student_now().replace(tzinfo=None)
+    return [
+        index for index, session in enumerate(plan_sessions())
+        if not session.get("done") and (session_end(session) or now) < now
+    ]
+
+
+def unplanned_assignments():
+    today = student_now().date()
+    planned = {_work_key(session) for session in plan_sessions()}
+    return [
+        assignment for assignment in st.session_state.assignments
+        if _work_key(assignment, "name") not in planned
+        and (due_date_value(assignment.get("due_date")) or today + timedelta(days=1)) > today
+    ]
+
+
+def mark_sessions_done(indexes):
+    sessions = st.session_state.study_plan["study_sessions"]
+    for index in indexes:
+        sessions[index]["done"] = True
+        sessions[index]["done_on"] = sessions[index].get("date") or student_now().date().isoformat()
+    save()
+
+
+def skip_session(index):
+    """Take a session off the calendar and fit its work in at another time."""
+    session = st.session_state.study_plan["study_sessions"].pop(index)
+    avoid = [{"date": session.get("date"), "start": session.get("start_time"), "end": session.get("end_time")}]
+    return update_plan(avoid, spinner_text="Finding a new time...")
+
+
+def show_plan_attention():
+    missed = missed_sessions()
+    unplanned = unplanned_assignments()
+    if not missed and not unplanned:
+        return
+
+    with st.container(border=True, key="plan_attention"):
+        if missed:
+            st.markdown(
+                f":material/history: **{len(missed)} past session{'s' if len(missed) != 1 else ''} "
+                f"{'weren' if len(missed) != 1 else 'wasn'}'t checked off.** "
+                "If you missed them, StudyFlow can fit that work in before it's due."
+            )
+        if unplanned:
+            names = ", ".join(f"**{assignment['name']}**" for assignment in unplanned[:3])
+            more = f" and {len(unplanned) - 3} more" if len(unplanned) > 3 else ""
+            st.markdown(f":material/playlist_add: Not in your plan yet: {names}{more}.")
+
+        update_column, done_column = st.columns(2)
+        with update_column:
+            label = ":material/update: Reschedule missed work" if missed else ":material/update: Add them to my plan"
+            if st.button(label, type="primary", width="stretch", key="attention_update"):
+                st.session_state.flash = update_plan()
+                st.rerun()
+        with done_column:
+            if missed and st.button(":material/done_all: I did them", width="stretch", key="attention_done"):
+                mark_sessions_done(missed)
+                st.session_state.flash = f"Marked {len(missed)} session{'s' if len(missed) != 1 else ''} as done."
+                st.rerun()
+
 
 # ============================================================
 # ANALYTICS HELPERS
@@ -1818,11 +1980,84 @@ When the student is working on homework, guide them through the steps so they un
 Always write times in 12-hour format with AM or PM (for example 4:30 PM), never in 24-hour format.
 """
 
-ASSIGNMENT_TAG = re.compile(r"<add_assignment>(.*?)</add_assignment>", re.S)
+ACTION_TAGS = (
+    "add_assignment",
+    "update_assignment",
+    "remove_assignment",
+    "add_event",
+    "remove_event",
+    "mark_done",
+    "move_session",
+    "update_plan",
+    "update_settings",
+    "make_flashcards"
+)
 
-FLASHCARD_TAG = re.compile(r"<make_flashcards>(.*?)</make_flashcards>", re.S)
+ACTION_TAG = re.compile(r"<(" + "|".join(ACTION_TAGS) + r")>(.*?)</\1>", re.S)
 
-UNFINISHED_TAG = re.compile(r"<(add_assignment|make_flashcards)>.*$", re.S)
+# Models sometimes write an action as attributes instead: <make_flashcards request="..." count="5"/>
+ATTRIBUTE_TAG = re.compile(
+    r"<(" + "|".join(ACTION_TAGS) + r")((?:\s+[a-z_]+\s*=\s*(?:\"[^\"]*\"|'[^']*'))+)\s*/?>(?:\s*</\1>)?"
+)
+
+ATTRIBUTE = re.compile(r"([a-z_]+)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')")
+
+UNFINISHED_TAG = re.compile(r"<(" + "|".join(ACTION_TAGS) + r")(?:>.*|\s[^>]*)?$", re.S)
+
+ASSIGNMENT_FIELDS = (
+    "name", "type", "course", "due_date", "difficulty", "estimated_minutes", "priority", "description", "study_material"
+)
+
+STYLE_TIMES = ("wake", "bed", "dinner", "homework_start")
+
+STYLE_NUMBERS = {"session_length": (10, 90), "max_per_day": (30, 600), "break_length": (0, 60)}
+
+STYLE_SWITCHES = ("weekends", "lighter_fridays", "sunday_catchup")
+
+STYLE_LABELS = {
+    "wake": "wake-up time",
+    "bed": "bedtime",
+    "dinner": "dinner time",
+    "homework_start": "homework start",
+    "session_length": "session length",
+    "max_per_day": "max study per day",
+    "break_length": "break length",
+    "weekends": "weekend studying",
+    "lighter_fridays": "lighter Fridays",
+    "sunday_catchup": "Sunday catch-up day",
+    "peak": "peak productivity"
+}
+
+
+def schedule_context():
+    now = student_now().replace(tzinfo=None)
+    today = now.date()
+
+    event_lines = [
+        f"- {event['name']}: {event_time_label(event)}"
+        for event in calendar_events.upcoming(one_time_events(), today, days_back=0)
+    ]
+
+    session_lines = []
+    for session in plan_sessions():
+        day = due_date_value(session.get("date"))
+        if not day or not today - timedelta(days=7) <= day <= today + timedelta(days=14):
+            continue
+        end = session_end(session)
+        status = " (done)" if session.get("done") else " (missed, not checked off)" if end and end < now else ""
+        session_lines.append(
+            f"- {day:%a %Y-%m-%d} {setup.pretty_time(session.get('start_time'))}-{setup.pretty_time(session.get('end_time'))}: "
+            f"{session.get('assignment')} ({session.get('course') or 'General'}){status}"
+        )
+
+    plan_note = "" if st.session_state.study_plan else " The student has no study plan yet."
+    events_text = "\n".join(event_lines[:30]) or "- none"
+    sessions_text = "\n".join(session_lines[:60]) or "- none"
+    return (
+        f"It is now {setup.pretty_time(now.strftime('%H:%M'))} on {now:%A}.\n\n"
+        f"The student's one-time events (appointments, games, trips):\n{events_text}\n\n"
+        f"The student's study sessions from the past week through the next two weeks:{plan_note}\n{sessions_text}"
+    )
 
 
 def chat_context():
@@ -1837,84 +2072,328 @@ def chat_context():
         if uses_ab_calendar() else ""
     )
     return f"""
-    {date_context()}
+{date_context()}
 
-    About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
-    {student}
+{schedule_context()}
 
-    The student's current assignments are:
-    {json.dumps(st.session_state.assignments, indent=2)}
+About the student (use their first name naturally, and keep their schedule and preferences in mind):{ab_hint}
+{student}
 
-    Adding assignments:
-    If, and only if, the student asks you to add an assignment, test, quiz, or project to their planner,
-    reply normally, mention that you added it, and then put one line at the very end of your reply for each item,
-    in exactly this format:
-    <add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
-    - Difficulty must be 1-5. Priority must be Low, Medium, or High.
-    - Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
-    - {ASSIGNMENT_NAME_RULE}
-    - {COURSE_RULE}
-    - Convert relative dates such as "next Friday" into YYYY-MM-DD using the calendar above.
-    - Never use these tags for anything else, and never mention them to the student.
+The student's current assignments are:
+{json.dumps(st.session_state.assignments, indent=2)}
 
-    Making flashcards:
-    If, and only if, the student asks you to make flashcards, StudyFlow makes them for you.
-    Reply with one short sentence saying you're making them, then put one line at the very end of your reply:
-    <make_flashcards>{{"request": "", "course": "", "count": 12}}</make_flashcards>
-    - request describes exactly what the cards should cover, with every detail the student gave
-      (topic, unit, vocab words, or "the attached notes" if they sent a photo).
-    - course is one of the student's courses, or blank if it doesn't fit one.
-    - count is 5-20. Use the number the student asked for, or 12.
-    - Never write the flashcards yourself in the reply, and never mention the tag to the student.
+Changing the student's planner:
+You can change the planner by putting action lines at the very end of your reply, one per line, each in
+exactly the format shown below. Use them only when the student asks you to change something or clearly
+tells you about a change (for example "I finished my bio session" or "I have a dentist appointment Tuesday
+at 3"). First reply normally, in one or two sentences, saying what you're doing. StudyFlow carries out the
+actions and adds a summary of what changed after your reply, so never write that summary yourself, and
+never say you changed something without including its action line. Never mention the tags or show them
+to the student.
+
+<add_assignment>{{"name": "", "type": "", "course": "", "due_date": "YYYY-MM-DD", "difficulty": 3, "estimated_minutes": 60, "priority": "Medium", "description": ""}}</add_assignment>
+Adds an assignment, test, quiz, or project.
+- Difficulty must be 1-5. Priority must be Low, Medium, or High.
+- Type must be one of: {", ".join(ASSIGNMENT_TYPES)}, or blank if you are not sure.
+- {ASSIGNMENT_NAME_RULE}
+- {course_rule()}
+
+<update_assignment>{{"name": "exact current name", "changes": {{"due_date": "YYYY-MM-DD"}}}}</update_assignment>
+Changes an existing assignment. "changes" holds only the fields that change, using the fields above.
+
+<remove_assignment>{{"name": "exact current name"}}</remove_assignment>
+Removes an assignment the student finished, dropped, or added by mistake.
+
+<add_event>{{"name": "", "date": "YYYY-MM-DD", "start": "HH:MM", "end": "HH:MM", "all_day": false}}</add_event>
+Adds a one-time event the student is busy for (an appointment, game, trip, or family plans).
+Use 24-hour HH:MM inside the tag. If they give a start time but no end, make it one hour long.
+For a whole day (a trip, being sick), set "all_day": true and leave start and end blank.
+
+<remove_event>{{"name": "", "date": "YYYY-MM-DD"}}</remove_event>
+Removes one of the one-time events listed above.
+
+<mark_done>{{"assignment": "", "date": "YYYY-MM-DD"}}</mark_done>
+Checks off the study sessions for that assignment on that date. Leave the date blank to check off every
+session for it up to today.
+
+<move_session>{{"assignment": "", "date": "YYYY-MM-DD"}}</move_session>
+Moves the study session for that assignment on that date to another free time, when the student can't
+make it. If they're busy for a stretch of time, use add_event and update_plan instead.
+
+<update_plan>{{"start_over": false}}</update_plan>
+Updates the study plan: reschedules missed sessions and fits in new or changed assignments and events
+without moving anything else. It makes a plan if there isn't one. Set "start_over" to true only if the
+student asks for a completely new plan. Add it after any other change that affects the schedule, and
+when the student says they missed or forgot something.
+
+<update_settings>{{"max_per_day": 180}}</update_settings>
+Changes study settings. Allowed keys: wake, bed, dinner, homework_start (HH:MM); session_length (10-90),
+max_per_day (30-600), and break_length (0-60) in minutes; weekends, lighter_fridays, and sunday_catchup
+(true or false); peak ({", ".join(setup.PEAK_TIMES)}).
+
+<make_flashcards>{{"request": "", "course": "", "count": 12}}</make_flashcards>
+Makes flashcards. request describes exactly what the cards should cover, with every detail the student
+gave (topic, unit, vocab words, or "the attached notes" if they sent a photo). course is one of the
+student's courses, or blank. count is 5-20: the number they asked for, or 12. Never write the flashcards
+yourself in the reply.
+
+Rules for actions:
+- Convert relative dates and times such as "next Friday" or "tonight" using the calendar and time above.
+- Use names exactly as they appear above when changing or removing something.
+- If you don't know which item, day, or time they mean, ask a short question instead of guessing.
+- Email reminders, courses, and activities are changed in the Settings tab, so point the student there.
 """
 
 
-def pull_assignment_tags(reply):
-    added = []
-
-    for raw in ASSIGNMENT_TAG.findall(reply):
-        raw = raw.strip()
-        for fence in ("```json", "```"):
-            raw = raw.removeprefix(fence)
-        raw = raw.removesuffix("```").strip()
-
+def pull_actions(reply):
+    actions = []
+    for kind, raw in ACTION_TAG.findall(reply):
         try:
-            data = json.loads(raw)
+            data = parse_json_reply(raw)
         except json.JSONDecodeError:
-            continue
-
-        if isinstance(data, dict):
-            assignment = normalize_assignment(data)
-            assignment["course"] = guess_course(assignment)
-            added.append(assignment)
-
-    clean_reply = UNFINISHED_TAG.sub("", FLASHCARD_TAG.sub("", ASSIGNMENT_TAG.sub("", reply))).strip()
-    return clean_reply, added
-
-
-def pull_flashcard_requests(reply):
-    requests = []
-    for raw in FLASHCARD_TAG.findall(reply):
-        raw = raw.strip()
-        for fence in ("```json", "```"):
-            raw = raw.removeprefix(fence)
-        raw = raw.removesuffix("```").strip()
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
+            print("AI ACTION SKIPPED (bad JSON):", kind)
             continue
         if isinstance(data, dict):
-            requests.append({
-                "request": str(data.get("request") or "").strip(),
-                "course": str(data.get("course") or "").strip(),
-                "count": fcard.clamp_count(data.get("count"))
-            })
-    return requests[:2]
+            actions.append((kind, data))
+    for kind, attributes in ATTRIBUTE_TAG.findall(reply):
+        data = {}
+        for key, double_quoted, single_quoted in ATTRIBUTE.findall(attributes):
+            value = double_quoted or single_quoted
+            data[key] = {"true": True, "false": False}.get(value.lower(), value)
+        actions.append((kind, data))
+    return visible_reply(reply), actions
 
 
 def visible_reply(text):
-    text = UNFINISHED_TAG.sub("", FLASHCARD_TAG.sub("", ASSIGNMENT_TAG.sub("", text)))
+    text = UNFINISHED_TAG.sub("", ATTRIBUTE_TAG.sub("", ACTION_TAG.sub("", text)))
     return re.sub(r"<[a-z_]*$", "", text).strip()
+
+
+def find_assignment(text):
+    """Index of the assignment `text` names, or None when it's missing or unclear."""
+    wanted = " ".join(str(text or "").split()).casefold()
+    if not wanted:
+        return None
+    names = [str(assignment.get("name") or "").casefold() for assignment in st.session_state.assignments]
+    if wanted in names:
+        return names.index(wanted)
+    partial = [index for index, name in enumerate(names) if wanted in name or (name and name in wanted)]
+    return partial[0] if len(partial) == 1 else None
+
+
+def rename_sessions(old_key, assignment):
+    for session in plan_sessions():
+        if _work_key(session) == old_key:
+            session["assignment"] = assignment["name"]
+            session["course"] = assignment["course"]
+
+
+def clean_time(value):
+    return setup.from_time(setup.to_time(value)) if value else None
+
+
+def act_add_assignment(data):
+    assignment = normalize_assignment(data)
+    assignment["course"] = guess_course(assignment)
+    st.session_state.assignments.append(assignment)
+    return f":material/assignment_add: Added **{assignment['name']}** (due {pretty_due_date(assignment['due_date'])})."
+
+
+def act_update_assignment(data):
+    index = find_assignment(data.get("name"))
+    if index is None:
+        return f":material/help: Couldn't find an assignment called **{data.get('name') or '?'}**."
+    changes = data.get("changes") if isinstance(data.get("changes"), dict) else {
+        key: value for key, value in data.items() if key != "name"
+    }
+    old = st.session_state.assignments[index]
+    updated = normalize_assignment({
+        **old,
+        **{key: value for key, value in changes.items() if key in ASSIGNMENT_FIELDS and value not in (None, "")}
+    })
+    if "course" in changes:
+        updated["course"] = guess_course(updated)
+    st.session_state.assignments[index] = updated
+    rename_sessions(_work_key(old, "name"), updated)
+    changed = [key.replace("_", " ") for key in ASSIGNMENT_FIELDS if updated.get(key) != old.get(key)]
+    return f":material/edit: Updated **{updated['name']}**" + (f" ({', '.join(changed)})." if changed else ".")
+
+
+def act_remove_assignment(data):
+    index = find_assignment(data.get("name"))
+    if index is None:
+        return f":material/help: Couldn't find an assignment called **{data.get('name') or '?'}**."
+    removed = st.session_state.assignments.pop(index)
+    key = _work_key(removed, "name")
+    if st.session_state.study_plan:
+        st.session_state.study_plan["study_sessions"] = [
+            session for session in plan_sessions()
+            if session.get("done") or _work_key(session) != key
+        ]
+    return f":material/delete: Removed **{removed['name']}** and its upcoming study sessions."
+
+
+def act_add_event(data):
+    day = due_date_value(data.get("date"))
+    if day is None:
+        return ":material/help: Couldn't add that event because the date wasn't clear."
+    start = clean_time(data.get("start"))
+    all_day = bool(data.get("all_day")) or not start
+    start = start or calendar_events.DEFAULT_START
+    end = clean_time(data.get("end"))
+    if not end:
+        end = (datetime.combine(day, setup.to_time(start)) + timedelta(hours=1)).strftime("%H:%M")
+    event = calendar_events.new_event(data.get("name") or "Busy", day.isoformat(), start, end, all_day)
+    save_one_time_events(one_time_events() + [event])
+    clash = len(calendar_events.overlapping_sessions(event, plan_sessions()))
+    note = f" It overlaps {clash} study session{'s' if clash != 1 else ''}." if clash else ""
+    return f":material/event: Added **{event['name']}** on {event_time_label(event)}.{note}"
+
+
+def act_remove_event(data):
+    wanted = " ".join(str(data.get("name") or "").split()).casefold()
+    day = due_date_value(data.get("date"))
+    if not wanted and day is None:
+        return ":material/help: Couldn't tell which event to remove."
+    matches = [
+        event for event in calendar_events.upcoming(one_time_events(), student_now().date())
+        if (not wanted or wanted in event["name"].casefold() or event["name"].casefold() in wanted)
+        and (day is None or event["date"] == day.isoformat())
+    ]
+    if not matches:
+        return f":material/help: Couldn't find the event **{data.get('name') or '?'}**."
+    removed = matches[0]
+    delete_event(removed["id"])
+    return f":material/event_busy: Removed **{removed['name']}** ({event_time_label(removed)})."
+
+
+def sessions_for(assignment_text, day=None):
+    """Indexes of unchecked sessions for the named assignment: on `day`, or up to today."""
+    index = find_assignment(assignment_text)
+    wanted = (
+        str(st.session_state.assignments[index]["name"]).casefold() if index is not None
+        else " ".join(str(assignment_text or "").split()).casefold()
+    )
+    if not wanted:
+        return []
+    today = student_now().date()
+    found = []
+    for position, session in enumerate(plan_sessions()):
+        name = str(session.get("assignment") or "").casefold()
+        session_day = due_date_value(session.get("date"))
+        if session.get("done") or not session_day or not (wanted in name or name in wanted):
+            continue
+        if (session_day == day) if day else (session_day <= today):
+            found.append(position)
+    return found
+
+
+def act_mark_done(data):
+    found = sessions_for(data.get("assignment"), due_date_value(data.get("date")))
+    if not found:
+        return f":material/help: Couldn't find an unchecked session for **{data.get('assignment') or '?'}** to check off."
+    sessions = st.session_state.study_plan["study_sessions"]
+    for index in found:
+        sessions[index]["done"] = True
+        sessions[index]["done_on"] = student_now().date().isoformat()
+    return (
+        f":material/check_circle: Checked off {len(found)} session{'s' if len(found) != 1 else ''} "
+        f"for **{sessions[found[0]]['assignment']}**."
+    )
+
+
+def act_move_session(data):
+    day = due_date_value(data.get("date"))
+    found = sessions_for(data.get("assignment"), day) if day else []
+    if not found:
+        return f":material/help: Couldn't find a session for **{data.get('assignment') or '?'}** on that day to move."
+    return ":material/event_repeat: " + skip_session(found[0])
+
+
+def act_update_settings(data):
+    style = dict(st.session_state.study_style)
+    changed = []
+    for key, value in data.items():
+        if key in STYLE_TIMES and clean_time(value):
+            style[key] = clean_time(value)
+        elif key in STYLE_NUMBERS and _whole_number(value, None) is not None:
+            low, high = STYLE_NUMBERS[key]
+            style[key] = max(low, min(high, _whole_number(value, None)))
+        elif key in STYLE_SWITCHES and isinstance(value, bool):
+            style[key] = value
+        elif key == "peak" and str(value).title() in setup.PEAK_TIMES:
+            style[key] = str(value).title()
+        else:
+            continue
+        changed.append(STYLE_LABELS[key])
+    if not changed:
+        return ":material/help: Those settings can't be changed from chat. Open the Settings tab instead."
+    st.session_state.study_style = style
+    return f":material/tune: Updated your {', '.join(changed)}."
+
+
+ACTIONS = {
+    "add_assignment": act_add_assignment,
+    "update_assignment": act_update_assignment,
+    "remove_assignment": act_remove_assignment,
+    "add_event": act_add_event,
+    "remove_event": act_remove_event,
+    "mark_done": act_mark_done,
+    "move_session": act_move_session,
+    "update_settings": act_update_settings
+}
+
+
+def carry_out(actions):
+    """Run the AI's actions. Flashcards and the plan update go last so they see every other change."""
+    notes = []
+    flashcard_requests = []
+    plan_request = None
+    moved = False
+
+    for kind, data in actions:
+        moved = moved or kind == "move_session"
+        if kind == "make_flashcards":
+            flashcard_requests.append(data)
+        elif kind == "update_plan":
+            plan_request = {**(plan_request or {}), **data}
+        else:
+            try:
+                notes.append(ACTIONS[kind](data))
+            except Exception as error:
+                print("AI ACTION FAILED:", kind, type(error).__name__, error)
+                notes.append(":material/error: Something went wrong with one of those changes. Please make it in the app.")
+
+    images = next(
+        (message.get("images") for message in reversed(st.session_state.messages) if message["role"] == "user"),
+        None
+    ) or None
+    for data in flashcard_requests[:2]:
+        course = str(data.get("course") or "").strip()
+        course = course if course in setup.course_names(st.session_state.courses) else ""
+        card_set = make_requested_flashcards(
+            str(data.get("request") or "").strip(), course, fcard.clamp_count(data.get("count")), images=images
+        )
+        notes.append(
+            f":material/style: Made **{len(card_set['cards'])} flashcards**: *{card_set['assignment']}*. "
+            "Open the **Flashcards** tab to study them."
+            if card_set else
+            ":material/help: I couldn't make those flashcards this time. Try asking again with a more specific topic."
+        )
+
+    if plan_request is not None:
+        if plan_request.get("start_over") is True or not st.session_state.study_plan:
+            with st.spinner("Building your study plan..."):
+                plan = generate_plan()
+            if plan:
+                apply_plan(plan)
+                notes.append(":material/calendar_month: Made your study plan. Open the **Study Plan** tab to see it.")
+            else:
+                notes.append(":material/help: Add an assignment first, then I can make your plan.")
+        elif not moved:  # moving a session already updated the plan
+            notes.append(":material/update: " + update_plan())
+
+    return notes
 
 
 def stream_reply(messages, placeholder):
@@ -1936,9 +2415,21 @@ def stream_reply(messages, placeholder):
             raise
 
 
+def model_history():
+    """Recent messages for the AI, with what StudyFlow changed written as plain notes."""
+    history = []
+    for message in st.session_state.messages[-MAX_HISTORY_MESSAGES:]:
+        notes = [re.sub(r":material/[a-z_]+:\s*", "", note).replace("**", "") for note in message.get("notes") or []]
+        content = message.get("content", "")
+        if notes:
+            content += "\n\n(StudyFlow then did this: " + " ".join(notes) + ")"
+        history.append({**message, "content": content})
+    return history
+
+
 def chatbot(message):
-    history = st.session_state.messages[-MAX_HISTORY_MESSAGES:]
-    messages = build_messages(chat_context(), CHAT_SYSTEM_PROMPT, conversation=history)
+    """Answer the student's message. Returns True when the AI changed the planner."""
+    messages = build_messages(chat_context(), CHAT_SYSTEM_PROMPT, conversation=model_history())
 
     placeholder = st.empty()
     placeholder.markdown('<span class="chat-thinking">Thinking…</span>', unsafe_allow_html=True)
@@ -1953,59 +2444,29 @@ def chatbot(message):
         else:
             st.error("Unable to connect to Ollama.")
             st.code(str(error))
-        return None
+        return False
+
+    reply, actions = pull_actions(reply or "")
+    notes = []
+    if actions:
+        placeholder.markdown(reply or "On it.")
+        notes = carry_out(actions)
+        reply = reply or "Done."
 
     if not reply:
         placeholder.empty()
         st.error("The AI sent back an empty reply. Please try again.")
-        return None
+        return False
 
-    flashcard_requests = pull_flashcard_requests(reply)
-    reply, added = pull_assignment_tags(reply)
-
-    if added:
-        st.session_state.assignments.extend(added)
-
-        if not reply:
-            names = ", ".join(f"**{assignment['name']}**" for assignment in added)
-            reply = f"Added {names} to your assignments."
-
-    if flashcard_requests:
-        if reply:
-            placeholder.markdown(reply)
-        images = next(
-            (message.get("images") for message in reversed(st.session_state.messages)
-             if message["role"] == "user"),
-            None
-        ) or None
-        made = []
-        for item in flashcard_requests:
-            course = item["course"] if item["course"] in setup.course_names(st.session_state.courses) else ""
-            card_set = make_requested_flashcards(item["request"], course, item["count"], images=images)
-            if card_set:
-                made.append(card_set)
-        for card_set in made:
-            reply += (
-                f"\n\n:material/style: I made **{len(card_set['cards'])} flashcards**: *{card_set['assignment']}*. "
-                "Open the **Flashcards** tab to study them."
-            )
-        if not made:
-            reply += "\n\nI couldn't make those flashcards this time. Try asking again with a more specific topic."
-        reply = reply.strip()
-
-    if not reply:
-        placeholder.empty()
-        st.error("The AI sent back an empty reply. Please try again.")
-        return None
-
-    placeholder.markdown(reply)
+    placeholder.markdown("\n\n".join([reply] + notes))
 
     st.session_state.messages.append({
         "role": "assistant",
-        "content": reply
+        "content": reply,
+        "notes": notes
     })
 
-    return reply
+    return bool(actions)
 
 
 def render_chat_message(message):
@@ -2014,6 +2475,9 @@ def render_chat_message(message):
     with st.chat_message(message["role"], avatar=avatar):
         if message.get("content"):
             st.markdown(message["content"])
+
+        for note in message.get("notes") or []:
+            st.markdown(note)
 
         for image_data in message.get("images", []):
             try:
@@ -2078,91 +2542,115 @@ def send_test_email(reminders):
         st.error("The test email couldn't be sent. Please try again later.")
 
 
-def show_reminder_settings():
-    reminders = st.session_state.reminders or {}
+def reminders_available():
+    return SUPABASE is not None and bool(st.session_state.get("student_id"))
 
-    st.subheader("Daily email reminders")
-    st.caption(
-        "Get one email a day with that day's study sessions and anything due in the next few days. "
-        "Emails come from studyflowreminders@gmail.com, and every email has a link to turn them off."
-    )
 
-    if SUPABASE is None or not st.session_state.get("student_id"):
-        st.info("Email reminders need saving to be turned on.")
-        return
-
-    suggested = ""
-    if signed_in_with_google():
-        suggested = st.user.get("email") or ""
+def reminder_form(prefix, reminders):
+    suggested = (st.user.get("email") or "") if signed_in_with_google() else ""
 
     enabled = st.toggle(
         "Email me a daily study reminder",
         value=bool(reminders.get("enabled")),
-        key="settings_reminders_enabled"
+        key=f"{prefix}_reminders_enabled"
     )
     email = st.text_input(
         "Email address",
         value=reminders.get("email") or suggested,
         placeholder="you@example.com",
-        key="settings_reminders_email"
+        key=f"{prefix}_reminders_email"
     )
     send_time = st.time_input(
         "Send it at",
         value=setup.to_time(reminder_email.reminder_time(reminders)),
         step=900,
         format="12h",
-        key="settings_reminders_time"
+        key=f"{prefix}_reminders_time"
     )
     age_ok = st.checkbox(
         "I'm 13 or older, or a parent or guardian said it's OK",
         value=bool(reminders.get("age_ok")),
-        key="settings_reminders_age"
+        key=f"{prefix}_reminders_age"
     )
+    return {
+        "enabled": enabled,
+        "email": email.strip(),
+        "time": setup.from_time(send_time) or reminder_email.DEFAULT_TIME,
+        "age_ok": age_ok
+    }
+
+
+def reminder_problem(values):
+    if values["enabled"] and not EMAIL_PATTERN.match(values["email"]):
+        return "Please enter a valid email address."
+    if values["enabled"] and not values["age_ok"]:
+        return "Please confirm you're 13 or older, or that a parent or guardian said it's OK."
+    return None
+
+
+def save_reminder_values(values):
+    reminders = st.session_state.reminders or {}
+    updated = {
+        **values,
+        "email": values["email"] if values["enabled"] else "",
+        "token": reminders.get("token") or secrets.token_urlsafe(24)
+    }
+    try:
+        st.session_state.reminders = storage.save_reminders(SUPABASE, st.session_state.student_id, updated)
+    except Exception as error:
+        print("REMINDER SAVE FAILED:", error)
+        if "reminders" in str(error):
+            st.error(
+                "Couldn't save because the database is missing the reminders column. "
+                "Run supabase/add_reminders.sql in the Supabase SQL Editor."
+            )
+        else:
+            st.error("Couldn't save your reminder settings. Please try again.")
+        with st.expander("Technical details"):
+            st.code(str(error))
+        return False
+    return True
+
+
+REMINDER_DESCRIPTION = (
+    "Get one email a day with that day's study sessions and anything due in the next few days. "
+    "Emails come from studyflowreminders@gmail.com, and every email has a link to turn them off."
+)
+
+
+def show_reminder_settings():
+    reminders = st.session_state.reminders or {}
+
+    st.subheader("Daily email reminders")
+    st.caption(REMINDER_DESCRIPTION)
+
+    if not reminders_available():
+        st.info("Email reminders need saving to be turned on.")
+        return
+
+    values = reminder_form("settings", reminders)
 
     save_column, test_column = st.columns(2)
 
     with save_column:
-        save_clicked = st.button("Save reminders", type="primary", use_container_width=True, key="save_reminders_button")
+        save_clicked = st.button("Save reminders", type="primary", width="stretch", key="save_reminders_button")
 
     with test_column:
         test_clicked = st.button(
             ":material/send: Send a test email",
-            use_container_width=True,
+            width="stretch",
             disabled=not (reminders.get("enabled") and reminders.get("email")),
             help="Save your reminder settings first, then send a test.",
             key="test_reminders_button"
         )
 
     if save_clicked:
-        email = email.strip()
-        if enabled and not EMAIL_PATTERN.match(email):
-            st.warning("Please enter a valid email address.")
-        elif enabled and not age_ok:
-            st.warning("Please confirm you're 13 or older, or that a parent or guardian said it's OK.")
-        else:
-            updated = {
-                "enabled": enabled,
-                "email": email if enabled else "",
-                "time": setup.from_time(send_time) or reminder_email.DEFAULT_TIME,
-                "age_ok": age_ok,
-                "token": reminders.get("token") or secrets.token_urlsafe(24)
-            }
-            try:
-                st.session_state.reminders = storage.save_reminders(SUPABASE, st.session_state.student_id, updated)
-            except Exception as error:
-                print("REMINDER SAVE FAILED:", error)
-                if "reminders" in str(error):
-                    st.error(
-                        "Couldn't save because the database is missing the reminders column. "
-                        "Run supabase/add_reminders.sql in the Supabase SQL Editor."
-                    )
-                else:
-                    st.error("Couldn't save your reminder settings. Please try again.")
-                with st.expander("Technical details"):
-                    st.code(str(error))
-            else:
-                st.session_state.flash = "Reminders turned on" if enabled else "Reminders turned off"
-                st.rerun()
+        problem = reminder_problem(values)
+        if problem:
+            st.warning(problem)
+        elif save_reminder_values(values):
+            st.session_state.flash = "Reminders turned on" if values["enabled"] else "Reminders turned off"
+            st.rerun()
 
     if test_clicked:
         send_test_email(reminders)
@@ -2177,6 +2665,9 @@ def show_reminder_settings():
 # ============================================================
 # SETUP WIZARD
 # ============================================================
+
+REMINDER_STEP = len(SETUP_STEPS) - 1
+
 
 def suggested_name():
     if signed_in_with_google():
@@ -2193,7 +2684,15 @@ def render_setup_section(step, prefix):
         return setup.activities_editor(prefix, st.session_state.activities)
     if step == 3:
         return setup.routine_form(prefix, st.session_state.study_style)
-    return setup.preferences_form(prefix, st.session_state.study_style, st.session_state.courses)
+    if step == 4:
+        return setup.preferences_form(prefix, st.session_state.study_style, st.session_state.courses)
+
+    st.caption(REMINDER_DESCRIPTION)
+    if not reminders_available():
+        st.info("Email reminders need saving, which isn't turned on here. You can skip this step.")
+        return None
+    draft = st.session_state.get(f"{prefix}_reminders_draft") or st.session_state.reminders or {}
+    return reminder_form(prefix, draft)
 
 
 def commit_setup_section(step, values, prefix):
@@ -2205,6 +2704,9 @@ def commit_setup_section(step, values, prefix):
     elif step == 2:
         st.session_state.activities = [item for item in values if item["name"]]
         st.session_state[f"{prefix}_activities_draft"] = list(st.session_state.activities)
+    elif step == REMINDER_STEP:
+        if values is not None:
+            st.session_state[f"{prefix}_reminders_draft"] = values
     else:
         st.session_state.study_style = {**st.session_state.study_style, **values}
 
@@ -2252,7 +2754,7 @@ def show_setup_wizard():
                     go_back = st.button(
                         ":material/arrow_back: Back",
                         disabled=step == 0,
-                        use_container_width=True,
+                        width="stretch",
                         key="wizard_back"
                     )
 
@@ -2260,7 +2762,7 @@ def show_setup_wizard():
                     go_next = st.button(
                         ":material/check: Finish" if last_step else "Continue :material/arrow_forward:",
                         type="primary",
-                        use_container_width=True,
+                        width="stretch",
                         key="wizard_next"
                     )
 
@@ -2281,6 +2783,15 @@ def show_setup_wizard():
             with middle:
                 st.warning("Please enter your name to continue.")
             st.stop()
+
+        if step == REMINDER_STEP and values is not None:
+            problem = reminder_problem(values)
+            if problem:
+                with middle:
+                    st.warning(problem)
+                st.stop()
+            if values["enabled"] and not save_reminder_values(values):
+                st.stop()
 
         commit_setup_section(step, values, "setup")
 
@@ -2443,7 +2954,7 @@ with tab1:
 
     if st.button(
         "Analyze",
-        use_container_width=True
+        width="stretch"
     ):
         if not assignment_input.strip() and uploaded_file is None:
             st.warning(
@@ -2483,7 +2994,7 @@ with tab1:
             ],
             key=f"found_editor_{st.session_state.found_batch}",
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             column_order=[
                 "add",
                 "name",
@@ -2511,7 +3022,7 @@ with tab1:
         add_column, discard_column = st.columns(2)
 
         with add_column:
-            if st.button(":material/check: Add Selected", type="primary", use_container_width=True):
+            if st.button(":material/check: Add Selected", type="primary", width="stretch"):
                 chosen = [
                     normalize_assignment({**row, "due_date": due_date_text(row.get("due_date"))})
                     for row in edited
@@ -2530,7 +3041,7 @@ with tab1:
                     st.rerun()
 
         with discard_column:
-            if st.button("Discard", use_container_width=True):
+            if st.button("Discard", width="stretch"):
                 st.session_state.found_assignments = []
                 st.rerun()
 
@@ -2636,25 +3147,54 @@ with tab1:
 with tab2:
     st.header(":material/calendar_month: Your Study Plan")
     show_event_manager()
-    if st.button(
-        ":material/auto_awesome: Generate Study Plan",
-        use_container_width=True
-    ):
-        if not st.session_state.assignments:
-            st.warning(
-                "Add at least one assignment first."
-            )
-        else:
-            with st.spinner(
-                "Building your personalized study plan..."
-            ):
-                plan = generate_plan()
-            if plan:
-                st.session_state.study_plan = plan
-                save()
-                st.success(
-                    "Study plan generated!"
+    if not st.session_state.study_plan:
+        if st.button(
+            ":material/auto_awesome: Generate Study Plan",
+            width="stretch"
+        ):
+            if not st.session_state.assignments:
+                st.warning(
+                    "Add at least one assignment first."
                 )
+            else:
+                with st.spinner(
+                    "Building your personalized study plan..."
+                ):
+                    plan = generate_plan()
+                if plan:
+                    apply_plan(plan)
+                    st.session_state.flash = "Study plan generated!"
+                    st.rerun()
+    else:
+        update_column, rebuild_column = st.columns([2, 1])
+        with update_column:
+            if st.button(
+                ":material/update: Update my plan",
+                type="primary",
+                width="stretch",
+                key="plan_update",
+                help="Keeps your plan and the sessions you moved. Reschedules missed sessions and "
+                     "fits in new or changed assignments and events."
+            ):
+                st.session_state.flash = update_plan()
+                st.rerun()
+        with rebuild_column:
+            if st.button(
+                ":material/restart_alt: Start over",
+                width="stretch",
+                key="plan_rebuild",
+                help="Makes a brand-new plan. Sessions you checked off stay."
+            ):
+                if not st.session_state.assignments:
+                    st.warning("Add at least one assignment first.")
+                else:
+                    with st.spinner("Building your personalized study plan..."):
+                        plan = generate_plan()
+                    if plan:
+                        apply_plan(plan)
+                        st.session_state.flash = "Made you a new study plan."
+                        st.rerun()
+        show_plan_attention()
 
     if st.session_state.study_plan:
         sessions = st.session_state.study_plan.get(
@@ -2664,10 +3204,13 @@ with tab2:
         zone_name = st.session_state.profile.get("timezone") or APP_TIMEZONE
 
         for item in st.session_state.study_plan.get("unscheduled", []):
+            tip = (
+                " Try raising your max study per day or turning on weekend studying in Settings."
+                if "free time" in str(item.get("reason")) else ""
+            )
             st.warning(
                 f"Couldn't fit {item.get('minutes', '')} min of **{item.get('assignment', '')}**: "
-                f"{item.get('reason', '')}. Try raising your max study per day "
-                "or turning on weekend studying in Settings."
+                f"{item.get('reason', '')}.{tip}"
             )
 
         if not sessions:
@@ -2733,8 +3276,9 @@ with tab3:
         if not st.session_state.messages:
             welcome_slot.markdown(
                 '<div class="welcome-card"><strong>Hi, I\'m StudyFlow AI </strong><br>'
-                'Tell me about a test, ask me to explain something, say '
-                '"add my bio test on Friday" to put it in your planner, or '
+                'Ask me to explain something, or tell me what\'s going on and I\'ll update your planner: '
+                '"add my bio test on Friday", "I have a dentist appointment Tuesday at 3", '
+                '"I missed yesterday\'s study session", "I finished my essay", or '
                 '"make flashcards on the causes of World War I".</div>',
                 unsafe_allow_html=True
             )
@@ -2774,24 +3318,20 @@ with tab3:
             with conversation_area:
                 render_chat_message(user_message)
 
-                assignment_count = len(st.session_state.assignments)
-                flashcard_count = len(st.session_state.flashcard_sets)
-
                 with st.chat_message("assistant", avatar=AVATAR_PATH):
-                    chatbot(message_text)
+                    changed = chatbot(message_text)
 
                     save()
 
-                    if (
-                        len(st.session_state.assignments) > assignment_count
-                        or len(st.session_state.flashcard_sets) > flashcard_count
-                    ):
+                    if changed:
                         st.rerun()
 
-    components.html(
+    st.html(
         """
+        <span class="studyflow-script-marker"></span>
         <script>
-            const doc = window.parent.document;
+        (() => {
+            const doc = document;
             if (doc.__studyflowCopyHandler) {
                 doc.removeEventListener('copy', doc.__studyflowCopyHandler);
             }
@@ -2810,11 +3350,11 @@ with tab3:
                     el.style.color = '#000';
                     el.style.backgroundColor = 'transparent';
                 });
+                // Build the wrapper with the DOM: st.html drops scripts that contain HTML tags in strings.
+                container.style.color = '#000';
+                container.style.background = 'transparent';
 
-                event.clipboardData.setData(
-                    'text/html',
-                    `<div style="color:#000;background:transparent">${container.innerHTML}</div>`
-                );
+                event.clipboardData.setData('text/html', container.outerHTML);
                 event.clipboardData.setData('text/plain', selection.toString());
                 event.preventDefault();
             };
@@ -2829,11 +3369,10 @@ with tab3:
                 if (!input || !input.getClientRects().length) return;
                 input.scrollIntoView({ block: 'end' });
             };
-            // Use the page's animation frame: this hidden iframe's own frames are throttled.
             const queueScroll = () => {
                 if (scrollQueued) return;
                 scrollQueued = true;
-                window.parent.requestAnimationFrame(scrollChat);
+                requestAnimationFrame(scrollChat);
             };
 
             if (doc.__studyflowChatObserver) {
@@ -2857,9 +3396,10 @@ with tab3:
             };
             doc.addEventListener('click', doc.__studyflowTabClick, true);
             queueScroll();
+        })();
         </script>
         """,
-        height=0
+        unsafe_allow_javascript=True
     )
     
 # ============================================================
@@ -2906,7 +3446,7 @@ with analytics_tab:
             st.caption(
                 f":material/warning: {len(missed)} past session{'s' if len(missed) != 1 else ''} "
                 f"{'weren' if len(missed) != 1 else 'wasn'}'t checked off. "
-                "Regenerate your study plan to fit that work back in."
+                "Use Reschedule missed work on the Study Plan tab to fit that work back in."
             )
 
         hours_column, subject_column = st.columns(2)
@@ -2941,7 +3481,7 @@ with analytics_tab:
                         ]
                     )
                 )
-                st.altair_chart(styled_chart(chart), use_container_width=True, theme=None)
+                st.altair_chart(styled_chart(chart), width="stretch", theme=None)
                 if not stats["done"]:
                     st.caption("Check off study sessions to fill this in.")
 
@@ -2953,7 +3493,7 @@ with analytics_tab:
                     values = [{"Subject": row["course"], "Assignments": row["count"]} for row in subjects]
                     st.altair_chart(
                         styled_chart(horizontal_bars(values, "Subject", "Assignments", "#14B8A6")),
-                        use_container_width=True,
+                        width="stretch",
                         theme=None
                     )
                 else:
@@ -2971,7 +3511,7 @@ with analytics_tab:
                     ]
                     st.altair_chart(
                         styled_chart(horizontal_bars(values, "Difficulty", "Assignments", "#14B8A6")),
-                        use_container_width=True,
+                        width="stretch",
                         theme=None
                     )
                 else:
@@ -3005,7 +3545,7 @@ with analytics_tab:
             st.dataframe(
                 [{"Day": f"{day['day']:%A, %b} {day['day'].day}", "Minutes studied": day["minutes"]} for day in week],
                 hide_index=True,
-                use_container_width=True
+                width="stretch"
             )
             st.dataframe(
                 [
@@ -3019,7 +3559,7 @@ with analytics_tab:
                     for row in load
                 ],
                 hide_index=True,
-                use_container_width=True
+                width="stretch"
             )
 
 

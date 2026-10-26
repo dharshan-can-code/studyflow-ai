@@ -1,9 +1,17 @@
 name: Send study reminders
 
 on:
+  # GitHub often starts scheduled runs hours late, so this is only a backup.
+  # The on-time trigger is supabase/reminder_trigger.sql (or any cron service)
+  # calling this workflow's "workflow_dispatch" every 10 minutes.
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+
+# Never let two runs overlap, or a student could get the same email twice.
+concurrency:
+  group: send-reminders
+  cancel-in-progress: false
 
 jobs:
   send:

@@ -318,6 +318,8 @@ def read_action(state):
 
 
 def move_session(session, start, end):
+    if end.date() != start.date():
+        end = datetime.combine(start.date(), datetime.max.time()).replace(second=0, microsecond=0)
     session["date"] = f"{start:%Y-%m-%d}"
     session["start_time"] = f"{start:%H:%M}"
     session["end_time"] = f"{end:%H:%M}"

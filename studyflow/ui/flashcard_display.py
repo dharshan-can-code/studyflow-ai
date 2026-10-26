@@ -301,7 +301,7 @@ def _finished(card_set, state, save):
                 f":material/replay: Practice the {learning} I'm still learning",
                 key=f"fc_again_{card_set['id']}",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 on_click=_start,
                 args=(card_set, "learning", True)
             )
@@ -309,7 +309,7 @@ def _finished(card_set, state, save):
         st.button(
             ":material/restart_alt: Go through all cards",
             key=f"fc_all_{card_set['id']}",
-            use_container_width=True,
+            width="stretch",
             on_click=_start,
             args=(card_set, "all")
         )
@@ -347,7 +347,7 @@ def show_set(card_set, save, delete):
         st.button(
             card[side],
             key=f"fc_card_{set_id}_{side}",
-            use_container_width=True,
+            width="stretch",
             on_click=_flip,
             args=(card_set,)
         )
@@ -361,7 +361,7 @@ def show_set(card_set, save, delete):
                     help="Previous card",
                     type="tertiary",
                     disabled=state["pos"] == 0,
-                    use_container_width=True,
+                    width="stretch",
                     on_click=_move,
                     args=(card_set, -1)
                 )
@@ -369,7 +369,7 @@ def show_set(card_set, save, delete):
                 st.button(
                     ":material/close: Still learning",
                     key=f"fc_still_{set_id}",
-                    use_container_width=True,
+                    width="stretch",
                     on_click=_mark,
                     args=(card_set, False, save)
                 )
@@ -378,7 +378,7 @@ def show_set(card_set, save, delete):
                     ":material/check: Got it",
                     key=f"fc_got_{set_id}",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     on_click=_mark,
                     args=(card_set, True, save)
                 )
@@ -388,7 +388,7 @@ def show_set(card_set, save, delete):
                     key=f"fc_next_{set_id}",
                     help="Skip this card",
                     type="tertiary",
-                    use_container_width=True,
+                    width="stretch",
                     on_click=_move,
                     args=(card_set, 1)
                 )
@@ -400,7 +400,7 @@ def show_set(card_set, save, delete):
                 ":material/shuffle: Shuffle",
                 key=f"fc_shuffle_{set_id}",
                 type="tertiary",
-                use_container_width=True,
+                width="stretch",
                 on_click=_start,
                 args=(card_set, state["mode"], True)
             )
@@ -409,18 +409,18 @@ def show_set(card_set, save, delete):
                 ":material/restart_alt: Reset",
                 key=f"fc_reset_{set_id}",
                 type="tertiary",
-                use_container_width=True,
+                width="stretch",
                 on_click=_forget_all,
                 args=(card_set, save)
             )
         with delete_column:
-            with st.popover(":material/delete: Delete", use_container_width=True):
+            with st.popover(":material/delete: Delete", width="stretch"):
                 st.write(f"Delete all {total} cards for **{card_set['assignment']}**?")
                 st.button(
                     "Yes, delete",
                     key=f"fc_delete_{set_id}",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     on_click=delete,
                     args=(set_id,)
                 )
