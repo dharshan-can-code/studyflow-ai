@@ -7,7 +7,8 @@ import streamlit as st
 GLASS_COLORS = {
     "pane": "#134B5F",
     "background": "#07121A",
-    "edge": "#9ED8E5"
+    "edge": "#9ED8E5",
+    "page": "#050B10"
 }
 GLASS_SPEED = 0.15
 GLASS_SCALE = 1.0

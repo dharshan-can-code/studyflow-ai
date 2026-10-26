@@ -47,6 +47,13 @@
       });
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => requestAnimationFrame(syncTheme));
+    document.addEventListener("click", (event) => {
+      const tab = event.target.closest('[data-testid="stTab"]');
+      if (!tab || tab.closest('[data-testid="stTabPanel"]') || !window.matchMedia("(max-width: 640px)").matches) return;
+      const main = document.querySelector('[data-testid="stMain"]');
+      if (main) main.scrollTo({ top: 0 });
+      window.scrollTo({ top: 0 });
+    }, true);
   }
   markCards();
   syncTheme();
@@ -61,10 +68,9 @@
     position: "fixed",
     inset: "0",
     width: "100vw",
-    height: "100vh",
+    height: CSS.supports("height", "100lvh") ? "100lvh" : "100vh",
     zIndex: "-2",
-    pointerEvents: "none",
-    opacity: String(settings.opacity)
+    pointerEvents: "none"
   });
 
   const scrim = document.createElement("div");
@@ -111,6 +117,8 @@
     color1: uniform("u_color1"),
     color2: uniform("u_color2"),
     color3: uniform("u_color3"),
+    base: uniform("u_base"),
+    opacity: uniform("u_opacity"),
     scale: uniform("u_scale"),
     noise: uniform("u_noise"),
     resolution: uniform("u_resolution")
@@ -126,6 +134,7 @@
   gl.uniform3fv(u.color1, hexToVec3(settings.colors.pane));
   gl.uniform3fv(u.color2, hexToVec3(settings.colors.background));
   gl.uniform3fv(u.color3, hexToVec3(settings.colors.edge));
+  gl.uniform3fv(u.base, hexToVec3(settings.colors.page));
   gl.uniform1f(u.scale, settings.scale);
   gl.uniform1f(u.noise, settings.noise);
 
@@ -152,6 +161,7 @@
     last = now;
     resize();
     gl.uniform1f(u.time, elapsed);
+    gl.uniform1f(u.opacity, document.documentElement.dataset.sfTheme === "light" ? 1 : settings.opacity);
     gl.uniform2f(u.resolution, canvas.width, canvas.height);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   };
@@ -168,5 +178,6 @@
 
   if (still) {
     new ResizeObserver(() => draw(performance.now())).observe(canvas);
+    new MutationObserver(() => draw(performance.now())).observe(document.documentElement, { attributes: true, attributeFilter: ["data-sf-theme"] });
   }
 })();

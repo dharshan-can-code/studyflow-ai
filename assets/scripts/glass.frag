@@ -3,6 +3,8 @@ uniform float u_time;
 uniform vec3 u_color1;
 uniform vec3 u_color2;
 uniform vec3 u_color3;
+uniform vec3 u_base;
+uniform float u_opacity;
 uniform float u_scale;
 uniform float u_noise;
 uniform vec2 u_resolution;
@@ -42,7 +44,8 @@ vec3 shade(vec2 uv, float time) {
     float body = exp(-back * 1.7);
     float fresnel = exp(-back * 8.0);
     float rim = exp(-back * 80.0);
-    float inner = exp(-pow((back - 0.045) / 0.014, 2.0));
+    float ring = (back - 0.045) / 0.014;
+    float inner = exp(-ring * ring);
     float bloom = exp(-abs(s) * 20.0);
     vec3 tint = mix(u_color1, u_color3, clamp(fresnel * 0.6 + 0.08 + 0.14 * sin(fi * 2.1 + q.x * 0.8 + t * 0.2), 0.0, 1.0));
     vec3 light = tint * pane * (body * 0.42 + fresnel * 0.4)
@@ -59,5 +62,5 @@ void main() {
     float g = grain(gl_FragCoord.xy + fract(u_time) * 17.0);
     color += (g - 0.5) * u_noise;
   }
-  gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+  gl_FragColor = vec4(mix(u_base, clamp(color, 0.0, 1.0), u_opacity), 1.0);
 }
