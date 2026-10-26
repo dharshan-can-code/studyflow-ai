@@ -58,6 +58,17 @@
   markCards();
   syncTheme();
 
+  try {
+    const host = window.parent !== window ? window.parent.document : null;
+    if (host && !host.getElementById("studyflow-host-style")) {
+      const hostStyle = host.createElement("style");
+      hostStyle.id = "studyflow-host-style";
+      hostStyle.textContent = 'a[class*="_viewerBadge_"], a[href^="https://streamlit.io/cloud"], [class*="_profileContainer_"], [class*="_profilePreview_"] { display: none !important; }';
+      host.head.appendChild(hostStyle);
+    }
+  } catch (error) {
+  }
+
   if (document.getElementById("studyflow-glass")) return;
 
   const settings = __SETTINGS__;
