@@ -107,7 +107,7 @@ StudyFlow does that part. You tell it what's due (by typing it, or by snapping a
 flowchart LR
     Student([Student]) --> App[Streamlit app<br/>app.py]
     App --> Planner[Scheduler<br/>studyflow/planning]
-    App --> AI[Ollama Cloud<br/>gpt-oss and Gemma]
+    App --> AI[Google Gemini API<br/>Gemini 3.8 Flash]
     App --> DB[(Supabase<br/>Postgres)]
     Cron[Supabase pg_cron<br/>every 10 minutes] --> Action[GitHub Action]
     Action --> Reminders[send_reminders.py]
@@ -123,12 +123,13 @@ flowchart LR
 
 ### AI models
 
-All AI runs through [Ollama Cloud](https://ollama.com).
+All AI runs through the [Google Gemini API](https://aistudio.google.com) free tier.
 
 | Model | Used for |
 |---|---|
-| `gpt-oss:20b-cloud` | Reading typed descriptions and PDFs, and making flashcards from text |
-| `gemma4:31b-cloud` | The AI Assistant chat, reading photos (assignment sheets and notes), and writing session tasks |
+| `gemini-3.8-flash` | Reading typed descriptions, PDFs and photos (assignment sheets and notes), making flashcards, writing session tasks, and the AI Assistant chat |
+
+To try a different free model, set `GEMINI_MODEL` in your secrets (for example `gemini-3.6-flash` or `gemini-3.5-flash-lite`). The connection code is in `gemini_client.py`.
 
 AI requests have a time limit and are retried once if they time out. If the AI can't write a task for a session, the session still gets a simple default task, so the plan always works. Chat replies stream in as they're written.
 
@@ -178,7 +179,7 @@ docs/screenshots/           Screenshots for this README
 
 ### What you need
 - **Python 3.11 or newer**
-- An **Ollama API key** (create an account at [ollama.com](https://ollama.com), then make a key in your account settings)
+- A free **Gemini API key** (sign in at [Google AI Studio](https://aistudio.google.com) and click **Get API key**; no credit card needed)
 - *Optional:* a [Supabase](https://supabase.com) project for saving data. Without it the app still runs, but nothing is saved.
 - *Optional:* Google sign-in and Gmail settings (see below)
 
@@ -195,7 +196,7 @@ pip install -r requirements.txt
 Create a file at `.streamlit/secrets.toml` with your own values:
 
 ```toml
-OLLAMA_API_KEY = "your-ollama-key"
+GEMINI_API_KEY = "your-gemini-key"
 
 SUPABASE_URL = "https://your-project.supabase.co"
 SUPABASE_SECRET_KEY = "your-supabase-secret-key"
@@ -212,7 +213,7 @@ client_secret = "your-google-client-secret"
 server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
 ```
 
-Only `OLLAMA_API_KEY` is required. Leave out the Supabase lines to run without saving, the Gmail lines to turn off reminder emails, and the `[auth]` section to hide Google sign-in.
+Only `GEMINI_API_KEY` is required. Leave out the Supabase lines to run without saving, the Gmail lines to turn off reminder emails, and the `[auth]` section to hide Google sign-in.
 
 > **Keep `[auth]` at the bottom.** In TOML, every line after `[auth]` belongs to that section, so keys placed below it (like the Gmail ones) won't be found.
 
@@ -280,7 +281,7 @@ The live app runs on [Streamlit Community Cloud](https://streamlit.io/cloud):
 
 - Each student's courses, assignments, study plan, events, chat history, and flashcards are stored in one database row.
 - Guests are identified by a random browser cookie. Only a hash of it is stored.
-- Text and photos sent to the AI are processed by Ollama Cloud.
+- Text and photos sent to the AI are processed by Google's Gemini API. On the free tier, Google may use that content to improve its products, so don't enter sensitive personal information.
 - Photos and PDFs you upload are only used for that one request and are **not saved**. Only the assignments or flashcards made from them are kept.
 - Students can delete all of their data at any time from **Your data** in the sidebar.
 - Reminder emails only go to students who turn them on, and every email has an unsubscribe link.
@@ -291,7 +292,7 @@ The live app runs on [Streamlit Community Cloud](https://streamlit.io/cloud):
 ## Built with
 
 - [Streamlit](https://streamlit.io): the app framework
-- [Ollama Cloud](https://ollama.com): AI models (`gpt-oss`, `gemma4`)
+- [Google Gemini API](https://aistudio.google.com): AI model (`gemini-3.8-flash`)
 - [Supabase](https://supabase.com): the database
 - [FullCalendar](https://fullcalendar.io), through [streamlit-calendar](https://github.com/im-perativa/streamlit-calendar): the study plan calendar
 - [Altair](https://altair-viz.github.io): analytics charts

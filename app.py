@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from pathlib import Path
-from ollama import Client, ResponseError
+from gemini_client import Client, ResponseError
 from streamlit_cookies_controller import CookieController
 
 from studyflow.data import storage, uploads
@@ -95,14 +95,14 @@ st.markdown(
 glass_background.show()
 
 # ============================================================
-# CONNECT TO OLLAMA
+# CONNECT TO THE AI (Google Gemini free tier)
 # ============================================================
 
 try:
-    ollama_api_key = st.secrets["OLLAMA_API_KEY"]
+    gemini_api_key = st.secrets["GEMINI_API_KEY"]
 except Exception:
     st.error(
-        "OLLAMA_API_KEY was not found. "
+        "GEMINI_API_KEY was not found. "
         "Add it to .streamlit/secrets.toml."
     )
     st.stop()
@@ -113,27 +113,17 @@ AI_ATTEMPTS = 2
 
 TASK_TIMEOUT_SECONDS = 45
 
-client = Client(
-    host="https://ollama.com",
-    headers={
-        "Authorization": f"Bearer {ollama_api_key}"
-    },
-    timeout=AI_TIMEOUT_SECONDS
-)
+client = Client(api_key=gemini_api_key, timeout=AI_TIMEOUT_SECONDS)
 
-task_client = Client(
-    host="https://ollama.com",
-    headers={
-        "Authorization": f"Bearer {ollama_api_key}"
-    },
-    timeout=TASK_TIMEOUT_SECONDS
-)
+task_client = Client(api_key=gemini_api_key, timeout=TASK_TIMEOUT_SECONDS)
 
-MODEL = "gpt-oss:20b-cloud"
+# One model handles text, photos and chat. To try another free model, set GEMINI_MODEL
+# in your secrets (for example "gemini-3.6-flash" or "gemini-3.5-flash-lite").
+MODEL = st.secrets.get("GEMINI_MODEL", "gemini-3.8-flash")
 
-VISION_MODEL = "gemma4:31b-cloud"
+VISION_MODEL = MODEL
 
-CHAT_MODEL = "gemma4:31b-cloud"
+CHAT_MODEL = MODEL
 
 CHAT_TEMPERATURE = 0.7
 
@@ -636,7 +626,7 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None
         if is_timeout(e):
             st.error("The AI took too long to answer. Please try again in a minute.")
         else:
-            st.error("Unable to connect to Ollama.")
+            st.error("Unable to reach the AI right now.")
             st.code(str(e))
         return None
 
@@ -2437,7 +2427,7 @@ def chatbot(message):
         if is_timeout(error):
             st.error("The AI took too long to answer. Please try again in a minute.")
         else:
-            st.error("Unable to connect to Ollama.")
+            st.error("Unable to reach the AI right now.")
             st.code(str(error))
         return False
 
@@ -3652,5 +3642,5 @@ with tab5:
 
 st.divider()
 st.caption(
-    "StudyFlow AI • Powered by Ollama"
+    "StudyFlow AI • Powered by Google Gemini"
 )
