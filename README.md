@@ -107,7 +107,7 @@ StudyFlow does that part. You tell it what's due (by typing it, or by snapping a
 flowchart LR
     Student([Student]) --> App[Streamlit app<br/>app.py]
     App --> Planner[Scheduler<br/>studyflow/planning]
-    App --> AI[Google Gemini API<br/>Gemini 3.8 Flash]
+    App --> AI[Google Gemini API<br/>Gemini Flash-Lite]
     App --> DB[(Supabase<br/>Postgres)]
     Cron[Supabase pg_cron<br/>every 10 minutes] --> Action[GitHub Action]
     Action --> Reminders[send_reminders.py]
@@ -127,9 +127,9 @@ All AI runs through the [Google Gemini API](https://aistudio.google.com) free ti
 
 | Model | Used for |
 |---|---|
-| `gemini-3.8-flash` | Reading typed descriptions, PDFs and photos (assignment sheets and notes), making flashcards, writing session tasks, and the AI Assistant chat |
+| `gemini-3.5-flash-lite` | Reading typed descriptions, PDFs and photos (assignment sheets and notes), making flashcards, writing session tasks, and the AI Assistant chat |
 
-To try a different free model, set `GEMINI_MODEL` in your secrets (for example `gemini-3.6-flash` or `gemini-3.5-flash-lite`). The connection code is in `gemini_client.py`.
+Flash-Lite is Gemini's fastest model and has the biggest free quota (about 500 requests a day). Thinking time is kept to a minimum so replies start quickly. If Flash-Lite is busy or out of quota, the request moves on to the other free Gemini models (`gemini-3.6-flash`, then `gemini-3.8-flash`). To use a different model first, set `GEMINI_MODEL` in your secrets. The connection code is in `gemini_client.py`.
 
 AI requests have a time limit and are retried once if they time out. If the AI can't write a task for a session, the session still gets a simple default task, so the plan always works. Chat replies stream in as they're written.
 
@@ -292,7 +292,7 @@ The live app runs on [Streamlit Community Cloud](https://streamlit.io/cloud):
 ## Built with
 
 - [Streamlit](https://streamlit.io): the app framework
-- [Google Gemini API](https://aistudio.google.com): AI model (`gemini-3.8-flash`)
+- [Google Gemini API](https://aistudio.google.com): AI model (`gemini-3.5-flash-lite`)
 - [Supabase](https://supabase.com): the database
 - [FullCalendar](https://fullcalendar.io), through [streamlit-calendar](https://github.com/im-perativa/streamlit-calendar): the study plan calendar
 - [Altair](https://altair-viz.github.io): analytics charts

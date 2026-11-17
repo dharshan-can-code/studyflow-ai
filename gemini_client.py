@@ -80,7 +80,12 @@ def _convert(messages):
 
 # If the chosen model is busy (503) or out of free quota (429), try these next.
 # Free limits are counted per model, so a different model usually still has room.
-FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
+FALLBACK_MODELS = ("gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash")
+
+# Gemini thinks silently before it answers, which is what made simple replies take 15-30 s.
+# "minimal" keeps that as short as possible. If a model won't accept it, the same model is
+# asked again without the setting.
+THINKING_LEVEL = "minimal"
 RETRYABLE_CODES = {429, 500, 503, 504}
 
 
@@ -90,6 +95,20 @@ def _models_to_try(model):
 
 def _should_try_next(error):
     return getattr(error, "code", None) in RETRYABLE_CODES
+
+
+def _rejected_thinking(error):
+    """True when a model said no to the thinking setting (then we ask again without it)."""
+    return getattr(error, "code", None) == 400 and "think" in str(error).lower()
+
+
+def _config(system, format, temperature, think):
+    return types.GenerateContentConfig(
+        system_instruction=system,
+        temperature=temperature,
+        response_mime_type="application/json" if format == "json" else None,
+        thinking_config=types.ThinkingConfig(thinking_level=THINKING_LEVEL) if think else None,
+    )
 
 
 def _friendly_error(error):
@@ -115,18 +134,21 @@ class Client:
     def chat(self, model, messages, format=None, options=None, stream=False, think=None, **_ignored):
         # `think` was an Ollama setting. Gemini decides how much to think on its own, so it's ignored.
         system, contents = _convert(messages)
-        config = types.GenerateContentConfig(
-            system_instruction=system,
-            temperature=(options or {}).get("temperature"),
-            response_mime_type="application/json" if format == "json" else None,
-        )
+        settings = (system, format, (options or {}).get("temperature"))
         if stream:
-            return self._stream(model, contents, config)
+            return self._stream(model, contents, settings)
 
         last_error = None
         for name in _models_to_try(model):
             try:
-                response = self._client.models.generate_content(model=name, contents=contents, config=config)
+                try:
+                    response = self._client.models.generate_content(
+                        model=name, contents=contents, config=_config(*settings, think=True))
+                except errors.APIError as error:
+                    if not _rejected_thinking(error):
+                        raise
+                    response = self._client.models.generate_content(
+                        model=name, contents=contents, config=_config(*settings, think=False))
                 return _wrap(response.text)
             except errors.APIError as error:
                 if not _should_try_next(error):
@@ -136,17 +158,26 @@ class Client:
                 time.sleep(0.5)
         raise _friendly_error(last_error) from last_error
 
-    def _stream(self, model, contents, config):
+    def _stream(self, model, contents, settings):
         last_error = None
         for name in _models_to_try(model):
             started = False
+            think = True
             try:
-                for chunk in self._client.models.generate_content_stream(model=name, contents=contents, config=config):
-                    text = chunk.text
-                    if text:
-                        started = True
-                        yield _wrap(text)
-                return
+                while True:
+                    try:
+                        for chunk in self._client.models.generate_content_stream(
+                            model=name, contents=contents, config=_config(*settings, think=think)
+                        ):
+                            text = chunk.text
+                            if text:
+                                started = True
+                                yield _wrap(text)
+                        return
+                    except errors.APIError as error:
+                        if started or not think or not _rejected_thinking(error):
+                            raise
+                        think = False  # this model won't take the thinking setting; ask again without it
             except errors.APIError as error:
                 # Once part of a reply has been shown, switching models would mix two answers.
                 if started or not _should_try_next(error):

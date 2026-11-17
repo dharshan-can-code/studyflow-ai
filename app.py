@@ -1,5 +1,6 @@
 import streamlit as st
 import altair as alt
+import hashlib
 import html
 import json
 import re
@@ -8,6 +9,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from pathlib import Path
+import gemini_client
 from gemini_client import Client, ResponseError
 from streamlit_cookies_controller import CookieController
 
@@ -30,6 +32,7 @@ import sys
 # ============================================================
 
 HELPER_MODULES = [
+    "gemini_client",
     "studyflow.data.fcps_courses",
     "studyflow.planning.ab_calendar",
     "studyflow.planning.events",
@@ -113,13 +116,26 @@ AI_ATTEMPTS = 2
 
 TASK_TIMEOUT_SECONDS = 45
 
-client = Client(api_key=gemini_api_key, timeout=AI_TIMEOUT_SECONDS)
+# Fingerprint of gemini_client.py. Passed to get_client so that after an update is pushed,
+# Streamlit builds a fresh client instead of reusing the one cached from the old code.
+CLIENT_CODE_VERSION = hashlib.sha256(Path(gemini_client.__file__).read_bytes()).hexdigest()[:12]
 
-task_client = Client(api_key=gemini_api_key, timeout=TASK_TIMEOUT_SECONDS)
 
-# One model handles text, photos and chat. To try another free model, set GEMINI_MODEL
-# in your secrets (for example "gemini-3.6-flash" or "gemini-3.5-flash-lite").
-MODEL = st.secrets.get("GEMINI_MODEL", "gemini-3.8-flash")
+@st.cache_resource
+def get_client(api_key, timeout, code_version=""):
+    """Create the AI client once and share it, instead of rebuilding it on every click."""
+    # gemini_client.Client (not the Client imported at the top) so a reloaded file is used.
+    return gemini_client.Client(api_key=api_key, timeout=timeout)
+
+
+client = get_client(gemini_api_key, AI_TIMEOUT_SECONDS, CLIENT_CODE_VERSION)
+
+task_client = get_client(gemini_api_key, TASK_TIMEOUT_SECONDS, CLIENT_CODE_VERSION)
+
+# One model handles text, photos and chat. Flash-Lite is Gemini's fastest model and has the
+# biggest free quota (~500 requests a day). To try another free model, set GEMINI_MODEL in
+# your secrets (for example "gemini-3.6-flash" or "gemini-3.8-flash").
+MODEL = st.secrets.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 VISION_MODEL = MODEL
 
