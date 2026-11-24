@@ -107,7 +107,8 @@ def _messages_for_saving(messages):
             "role": message["role"],
             "content": message.get("content", ""),
             "notes": message.get("notes") or [],
-            "had_image": bool(message.get("images")) or message.get("had_image", False)
+            "had_image": bool(message.get("images")) or message.get("had_image", False),
+            "busy": bool(message.get("busy"))  # "try again" replies the AI shouldn't see later
         })
     return saved
 

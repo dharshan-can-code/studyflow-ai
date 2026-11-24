@@ -112,8 +112,6 @@ except Exception:
 
 AI_TIMEOUT_SECONDS = 90
 
-AI_ATTEMPTS = 2
-
 TASK_TIMEOUT_SECONDS = 45
 
 # Fingerprint of gemini_client.py. Passed to get_client so that after an update is pushed,
@@ -554,54 +552,31 @@ def build_messages(prompt, system_message, conversation=None, images=None):
     return messages
 
 
-def think_setting(model):
-    return "low" if model.startswith("gpt-oss") else False
+def ai_error_message(error):
+    """A plain message for the student when no model could answer. The details go to the logs."""
+    if isinstance(error, gemini_client.ResponseError):
+        return str(error)  # already friendly: "busy", "free limit reached", or "check the key"
+    return "The AI couldn't answer right now. Please try again in a moment."
 
 
-def is_timeout(error):
-    return "timeout" in type(error).__name__.lower()
-
-
-def call_model(model, messages, use_json, temperature):
-    request = {
-        "model": model,
-        "messages": messages,
-        "format": "json" if use_json else None,
-        "options": {"temperature": temperature}
-    }
-
-    for attempt in range(AI_ATTEMPTS):
-        started = time.monotonic()
-        try:
-            try:
-                response = client.chat(think=think_setting(model), **request)
-            except ResponseError as error:
-                if "think" not in str(error).lower():
-                    raise
-                response = client.chat(**request)
-            print(f"AI {model} answered in {time.monotonic() - started:.1f}s")
-            return response
-        except Exception as error:
-            print(f"AI {model} failed after {time.monotonic() - started:.1f}s: {type(error).__name__}")
-            if is_timeout(error) and attempt < AI_ATTEMPTS - 1:
-                continue
-            raise
+def call_model(model, messages, use_json, temperature, ai_client=None):
+    # gemini_client.py moves on to the next model by itself when one is busy, out of quota, or
+    # too slow, and skips that model for a while, so there's no retry loop here.
+    return (ai_client or client).chat(
+        model=model,
+        messages=messages,
+        format="json" if use_json else None,
+        options={"temperature": temperature}
+    )
 
 
 def stream_model(model, messages, temperature):
-    request = {
-        "model": model,
-        "messages": messages,
-        "options": {"temperature": temperature},
-        "stream": True
-    }
-
-    try:
-        yield from client.chat(think=think_setting(model), **request)
-    except ResponseError as error:
-        if "think" not in str(error).lower():
-            raise
-        yield from client.chat(**request)
+    yield from client.chat(
+        model=model,
+        messages=messages,
+        options={"temperature": temperature},
+        stream=True
+    )
 
 
 def parse_json_reply(text):
@@ -639,11 +614,7 @@ def ask_ai(prompt, system_message, conversation=None, use_json=True, images=None
 
     except Exception as e:
         print("AI REQUEST FAILED:", type(e).__name__, e)
-        if is_timeout(e):
-            st.error("The AI took too long to answer. Please try again in a minute.")
-        else:
-            st.error("Unable to reach the AI right now.")
-            st.code(str(e))
+        st.error(ai_error_message(e))
         return None
 
 
@@ -1317,21 +1288,9 @@ Return ONLY valid JSON in exactly this format:
 {{"tasks": [{{"id": 1, "task": ""}}]}}
 """
     messages = build_messages(prompt, "You are a study coach who writes short, specific study tasks. Return only valid JSON.")
-    request = {
-        "model": CHAT_MODEL,
-        "messages": messages,
-        "format": "json",
-        "options": {"temperature": 0.3}
-    }
-
     started = time.monotonic()
     try:
-        try:
-            response = task_client.chat(think=False, **request)
-        except ResponseError as error:
-            if "think" not in str(error).lower():
-                raise
-            response = task_client.chat(**request)
+        response = call_model(CHAT_MODEL, messages, use_json=True, temperature=0.3, ai_client=task_client)
         data = parse_json_reply(response.message.content)
         print(f"AI tasks written in {time.monotonic() - started:.1f}s")
     except Exception as error:
@@ -1979,6 +1938,14 @@ Help with understanding schoolwork, studying for tests, planning workload, writi
 Use the conversation history to maintain context. Be honest when you are uncertain, never claim to see an image that was not included, and give clear, useful answers. Format with Markdown only when it improves readability.
 When the student is working on homework, guide them through the steps so they understand how to solve it, instead of only giving the final answer.
 Always write times in 12-hour format with AM or PM (for example 4:30 PM), never in 24-hour format.
+
+How helpful to be:
+- Give complete, genuinely useful answers. For explanations and homework help, cover the key ideas, explain why things work the way they do, and include an example or two. For how-to and study questions, give clear steps with practical tips.
+- A question still counts as a real question even when it is typed casually. For example, "yo whats the difference between mitosis and meiosis lol" deserves a full, proper answer, not a quick casual reply.
+- Organize longer answers with short headings, bullet points, or numbered steps so they are easy to scan, and bold the most important terms.
+- Match the length to the question. A quick fact gets a short answer, while explanations, plans, and writing help get a full, detailed one. Do not pad answers with filler.
+- When it helps, end with a short offer to go further, such as a practice question, flashcards on the topic, or a study session in their plan.
+- Always use correct grammar, spelling, and punctuation, even if the student writes casually.
 """
 
 ACTION_TAGS = (
@@ -2397,29 +2364,37 @@ def carry_out(actions):
     return notes
 
 
+# Shown as a normal chat reply (never an error box) when no AI answered within about 10 seconds,
+# or when a reply stopped partway through. The details still go to the app's logs.
+BUSY_REPLY = (
+    "Sorry, I'm getting a lot of questions right now. "
+    "Send that again in a minute and I'll help you out."
+)
+CUT_OFF_NOTE = "*(I got cut off there. Say \"continue\" and I'll finish.)*"
+
+
 def stream_reply(messages, placeholder):
-    for attempt in range(AI_ATTEMPTS):
-        text = ""
-        started = time.monotonic()
-        try:
-            for chunk in stream_model(CHAT_MODEL, messages, CHAT_TEMPERATURE):
-                piece = chunk.message.content or ""
-                if piece:
-                    text += piece
-                    placeholder.markdown(visible_reply(text) + " ▌")
-            print(f"AI {CHAT_MODEL} streamed in {time.monotonic() - started:.1f}s")
-            return text
-        except Exception as error:
-            print(f"AI {CHAT_MODEL} stream failed after {time.monotonic() - started:.1f}s: {type(error).__name__}")
-            if is_timeout(error) and not text and attempt < AI_ATTEMPTS - 1:
-                continue
-            raise
+    """Stream the reply into the placeholder. Returns (text, problem): problem is None, "busy"
+    (nothing answered in time), or "cut_off" (the reply stopped partway; text keeps what came in)."""
+    text = ""
+    try:
+        for chunk in stream_model(CHAT_MODEL, messages, CHAT_TEMPERATURE):
+            piece = chunk.message.content or ""
+            if piece:
+                text += piece
+                placeholder.markdown(visible_reply(text) + " ▌")
+        return text, None
+    except Exception as error:
+        print("AI reply failed:", type(error).__name__, error)
+        return text, ("cut_off" if text.strip() else "busy")
 
 
 def model_history():
     """Recent messages for the AI, with what StudyFlow changed written as plain notes."""
     history = []
     for message in st.session_state.messages[-MAX_HISTORY_MESSAGES:]:
+        if message.get("busy"):
+            continue  # "I'm busy, try again" replies aren't part of the real conversation
         notes = [re.sub(r":material/[a-z_]+:\s*", "", note).replace("**", "") for note in message.get("notes") or []]
         content = message.get("content", "")
         if notes:
@@ -2435,17 +2410,7 @@ def chatbot(message):
     placeholder = st.empty()
     placeholder.markdown('<span class="chat-thinking">Thinking…</span>', unsafe_allow_html=True)
 
-    try:
-        reply = stream_reply(messages, placeholder)
-    except Exception as error:
-        placeholder.empty()
-        print("AI REQUEST FAILED:", type(error).__name__, error)
-        if is_timeout(error):
-            st.error("The AI took too long to answer. Please try again in a minute.")
-        else:
-            st.error("Unable to reach the AI right now.")
-            st.code(str(error))
-        return False
+    reply, problem = stream_reply(messages, placeholder)
 
     reply, actions = pull_actions(reply or "")
     notes = []
@@ -2454,18 +2419,22 @@ def chatbot(message):
         notes = carry_out(actions)
         reply = reply or "Done."
 
-    if not reply:
-        placeholder.empty()
-        st.error("The AI sent back an empty reply. Please try again.")
-        return False
+    busy = problem == "busy" or not reply
+    if busy:
+        reply = BUSY_REPLY
+    elif problem == "cut_off":
+        reply = f"{reply}\n\n{CUT_OFF_NOTE}"
 
     placeholder.markdown("\n\n".join([reply] + notes))
 
-    st.session_state.messages.append({
+    assistant_message = {
         "role": "assistant",
         "content": reply,
         "notes": notes
-    })
+    }
+    if busy:
+        assistant_message["busy"] = True
+    st.session_state.messages.append(assistant_message)
 
     return bool(actions)
 
